@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="96" fill="#2f6fed"/>
+  <!-- 上影线/下影线 通用 -->
+  <g stroke="#ffffff" stroke-width="14" stroke-linecap="round">
+    <line x1="180" y1="120" x2="180" y2="392"/>
+    <line x1="332" y1="120" x2="332" y2="392"/>
+  </g>
+  <!-- 红涨蜡烛(阳) -->
+  <rect x="146" y="170" width="68" height="150" rx="8" fill="#e63946"/>
+  <!-- 绿跌蜡烛(阴) -->
+  <rect x="298" y="200" width="68" height="150" rx="8" fill="#2a9d3f"/>
+  <!-- 缠论笔连线 -->
+  <polyline points="120,360 180,250 250,300 332,210 392,260" fill="none" stroke="#ffd166" stroke-width="10" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>
