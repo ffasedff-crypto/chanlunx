@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="缠论" />
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icon.svg" />
+<title>ChanlunX 缠论主图 · 实时个股</title>
+<style>
+  :root {
+    --bg: #ffffff; --panel: #f7f8fa; --border: #e3e6eb; --text: #1f2329;
+    --muted: #8a9099; --red: #e63946; --green: #2a9d3f;
+    --bi: #e6a700; --duan: #ff7a1a;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", Segoe UI, sans-serif; background: var(--bg); color: var(--text);
+         display: flex; flex-direction: column; height: 100dvh; overflow-y: auto; }
+  header, #status, .subbar, .history, .legend, .hint { flex: 0 0 auto; }
+  header { padding: 14px 18px; border-bottom: 1px solid var(--border); background: var(--panel); }
+  h1 { font-size: 17px; margin: 0 0 10px; font-weight: 700; }
+  .bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  input#code { width: 200px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
+  select#period { padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
+  button { padding: 8px 16px; border: none; border-radius: 8px; background: #2f6fed; color: #fff; font-size: 14px; cursor: pointer; }
+  button:hover { background: #2559c9; }
+  .quote { margin-left: auto; display: flex; gap: 16px; align-items: baseline; font-size: 13px; flex-wrap: wrap; }
+  .quote .name { font-weight: 700; font-size: 15px; }
+  .quote .price { font-size: 20px; font-weight: 700; }
+  .up { color: var(--red); } .down { color: var(--green); }
+  #status { padding: 8px 18px; font-size: 12px; color: var(--muted); min-height: 18px; }
+  /* 图表区吃掉首屏剩余空间：主图 flex 自适应，副图固定高度 —— K线与指标同屏可见，无需下拉 */
+  .chart-wrap { position: relative; padding: 6px 10px 10px; flex: 1 1 auto; min-height: 300px;
+                display: flex; flex-direction: column; gap: 4px; }
+  canvas { width: 100%; display: block; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+  .main-chart { position: relative; flex: 1 1 auto; min-height: 140px; }
+  .main-chart > canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #cvx { height: 140px; flex: 0 0 auto; }
+  @media (max-height: 700px) { #cvx { height: 112px; } }
+  @media (max-height: 560px) { #cvx { height: 96px; } }
+  #tooltip { position: absolute; pointer-events: none; background: rgba(31,35,41,.92); color: #fff; font-size: 12px; padding: 8px 10px; border-radius: 6px; line-height: 1.5; display: none; white-space: nowrap; z-index: 5; }
+  #retry { display: none; margin: 0; padding: 7px 16px; border: none; border-radius: 8px; background: #e63946; color: #fff; font-size: 13px; cursor: pointer; }
+  #retry:hover { background: #c62f3c; }
+  .loading { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(255,255,255,.72); color: #6b7280; font-size: 14px; gap: 9px; z-index: 4; }
+  .spin { width: 17px; height: 17px; border: 3px solid #c7ccd4; border-top-color: #2f6fed; border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .history { display: none; gap: 8px; padding: 8px 18px; overflow-x: auto; align-items: center; -webkit-overflow-scrolling: touch; }
+  .history:empty { display: none; }
+  .chip { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px; background: #fff; font-size: 13px; color: var(--text); cursor: pointer; white-space: nowrap; }
+  .chip:active { background: #eef1f5; }
+  .chip .x { color: var(--muted); font-size: 14px; line-height: 1; padding: 0 2px; }
+  .chip .x:active { color: var(--red); }
+  .history .clear { flex: 0 0 auto; font-size: 12px; color: var(--muted); cursor: pointer; border: none; background: none; padding: 4px 6px; }
+  .history .clear:active { color: var(--red); }
+  .legend { display: flex; gap: 18px; font-size: 12px; color: var(--muted); padding: 0 18px 10px; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 5px; border-radius: 2px; }
+  .subbar { display: flex; align-items: center; gap: 10px; padding: 6px 18px 2px; flex-wrap: wrap; }
+  .subbar button { padding: 5px 12px; font-size: 13px; border: none; border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; }
+  .subbar button.ghost { background: #eef1f5; color: var(--text); border: 1px solid var(--border); }
+  .subbar .ver { font-size: 12px; color: var(--muted); }
+  .ver .ok { color: var(--green); font-weight: 600; }
+  .ver .bad { color: var(--red); font-weight: 600; }
+  /* 说明默认折叠，把首屏空间让给主图+副图 */
+  .hint { font-size: 12px; color: var(--muted); padding: 0 18px 14px; line-height: 1.7; }
+  .hint > summary { cursor: pointer; padding: 6px 0; font-size: 12px; color: #5a6472; list-style: none; user-select: none; }
+  .hint > summary::-webkit-details-marker { display: none; }
+  .hint > summary::before { content: '▸ '; color: var(--muted); }
+  .hint[open] > summary::before { content: '▾ '; }
+  .hint-body { padding: 4px 0 6px; }
+  .hint code { background: #eef1f5; padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>ChanlunX 缠论主图 · 实时个股</h1>
+  <div class="bar">
+    <input id="code" placeholder="股票代码，如 600000 / 000001 / sh600000" value="603799" />
+    <select id="period">
+      <option value="101" selected>日线</option>
+      <option value="102">周线</option>
+      <option value="103">月线</option>
+      <option value="109">60分钟</option>
+      <option value="108">30分钟</option>
+      <option value="107">15分钟</option>
+      <option value="106">5分钟</option>
+    </select>
+    <button id="go">查看</button>
+    <button id="reset" style="background:#6b7280">复位视图</button>
+    <button id="save" style="background:#0f9d58">存图</button>
+    <div class="quote" id="quote"></div>
+  </div>
+</header>
+<div id="status">输入代码后点击"查看"。当前由服务器代理取数（服务端拉取，不受浏览器 CORS 与公司网络限制），日/周/月/60/30/15/5 分钟全周期可用。</div>
+<div class="subbar">
+  <button id="retry">↻ 重试加载</button>
+  <button id="clearcache" class="ghost" title="清掉 Service Worker 缓存并强制重新加载">🧹 清缓存重载</button>
+  <span id="ver" class="ver"></span>
+</div>
+<div class="history" id="history"></div>
+<div class="legend">
+  <span><i style="background:var(--bi)"></i>笔 / 笔中枢</span>
+  <span><i style="background:var(--duan)"></i>段 / 段中枢</span>
+  <span><i style="background:var(--red)"></i>阳线(涨)</span>
+  <span><i style="background:var(--green)"></i>阴线(跌)</span>
+  <span style="color:var(--text)"><b>副图：</b><i style="background:#f5a0a8"></i>吸</span>
+  <span><i style="background:#e63946"></i>拉</span>
+  <span><i style="background:#9ad4a5"></i>派</span>
+  <span><i style="background:#2a9d3f"></i>落</span>
+  <span><i style="background:#e6a700"></i>▲买点 XG</span>
+  <span>（红=动能向上，绿=动能向下）</span>
+  <span><i style="background:#e63946"></i>前高收(红虚线)</span>
+  <span><i style="background:#2a9d3f"></i>波段前低(绿虚线)</span>
+  <span>主图叠加财富阶梯 · MA3/5/10/20/60/120 + 阶梯柱</span>
+  <span><i style="background:rgba(230,57,70,.5)"></i>↑跳空缺口(红带·未补)</span>
+  <span><i style="background:rgba(42,157,63,.5)"></i>↓跳空缺口(绿带·未补)</span>
+</div>
+<div class="chart-wrap">
+  <div class="main-chart"><canvas id="cv"></canvas></div>
+  <canvas id="cvx"></canvas>
+  <div id="tooltip"></div>
+  <div id="loading" class="loading"><span class="spin"></span>加载中…</div>
+</div>
+<details class="hint">
+  <summary>使用说明 / 指标口径（点击展开）</summary>
+  <div class="hint-body">
+  缠论算法由 ChanlunX（通达信 DLL 插件）C++ 源码逐函数移植，笔/段/中枢与插件一致。
+  市场自动识别：<code>6/9/5</code> 开头=沪市，<code>0/3/2/1/8</code> 开头=深市/北交所；也可显式写 <code>sh</code>/<code>sz</code>/<code>bj</code> 前缀。
+  数据源（自动按序回退）：本地服务器 server.py（推荐，全周期）→ 腾讯（日/周/月）→ 雪球（分钟线）→ 东方财富（全周期）→ 新浪经公共代理（兜底）。
+  服务端拉数据可绕开浏览器 CORS 与公司网络限制；本地用也是同一套：<code>python server.py</code> 后访问 <code>http://localhost:8000/app.html</code>。
+  实时价每 8 秒刷新一次。
+  <b>主图交互：</b>鼠标滚轮/上推放大、下推缩小（<b>缩放始终以最新K线为锚点，最新一根贴右边缘不动</b>），左右拖拽平移，双击复位；手机上<b>单指上下推=缩放、左右推=平移</b>；也可点「复位视图」按钮。
+  主图下方副图叠加<b>吸拉派落(XLPL)</b>指标，按 EME13 的<b>动能方向</b>与<b>0 轴位置</b>分四阶段：<span style="color:#e63946"><b>吸</b>=0轴下+动能向上（浅红，底部吸筹）</span>、<span style="color:#e63946"><b>拉</b>=0轴上+动能向上（正红，拉升）</span>、<span style="color:#2a9d3f"><b>派</b>=0轴上+动能向下（浅绿，高位派发）</span>、<span style="color:#2a9d3f"><b>落</b>=0轴下+动能向下（正绿，回落）</span>；柱高即 EME13 强弱，<b>金色▲为买点 XG</b>（吸昨∧拉今∧洗盘结束∧放量∧突破昨高）。右上角色块显示当前所处阶段。
+  </div>
+</details>
+
+<script src="chanlun.js"></script>
+<script>
+(function () {
+  'use strict';
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const cvx = document.getElementById('cvx');
+  const ctxX = cvx.getContext('2d');
+  const headerEl = document.querySelector('header');
+  const subbarEl = document.querySelector('.subbar');
+  const legendEl = document.querySelector('.legend');
+  const hintEl = document.querySelector('.hint');
+  cv.style.cursor = 'crosshair';
+  const tooltip = document.getElementById('tooltip');
+  const statusEl = document.getElementById('status');
+  const quoteEl = document.getElementById('quote');
+  const APP_VER = 'v12';  // 版本号：改了就说明页面是新的；v11=前端并发竞速提速；v12=缩放锚定最新K线(右边缘)
+  const verEl = document.getElementById('ver');
+  const EM2NAME = { '101': 'day', '102': 'week', '103': 'month', '109': '60min', '108': '30min', '107': '15min', '106': '5min' };
+  const DEFAULT_BARS = 120;   // 初始窗口显示的根数（右对齐，最新在前）
+
+  let cnt = 0;
+  let current = null;
+  let refreshTimer = null;
+
+  function status(s) { statusEl.textContent = s; }
+
+  const NAME2TX = { '101': 'day', '102': 'week', '103': 'month', '109': 'm60', '108': 'm30', '107': 'm15', '106': 'm5' };
+
+  // 带超时的 fetch（避免代理/接口挂死导致永久转圈）；AbortController 在 ms 后中断
+  function fetchWithTimeout(url, ms, opts) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), ms);
+    return fetch(url, Object.assign({ mode: 'cors', signal: ctrl.signal }, opts || {}))
+      .finally(() => clearTimeout(timer));
+  }
+
+  function parseCode(raw) {
+    let code = raw.trim().toLowerCase();
+    let pfx = 'sh';
+    if (code.startsWith('sh')) { pfx = 'sh'; code = code.slice(2); }
+    else if (code.startsWith('sz')) { pfx = 'sz'; code = code.slice(2); }
+    else if (code.startsWith('bj')) { pfx = 'bj'; code = code.slice(2); }
+    else if (/^[69]/.test(code) || /^5/.test(code) || /^11/.test(code)) pfx = 'sh';
+    else pfx = 'sz';
+    code = code.replace(/[^0-9]/g, '');
+    const market = (pfx === 'sh') ? 1 : 0;
+    return { pfx, code, secid: market + '.' + code };
+  }
+
+  // —— 浏览器直连腾讯（CORS 已放行，无需本地服务）——
+  async function txKline(rawCode, klt) {
+    const { pfx, code } = parseCode(rawCode);
+    const per = NAME2TX[klt] || 'day';
+    const url = 'https://web.ifzq.gtimg.cn/appstock/app/kline/kline?param=' + pfx + code + ',' + per + ',,,400';
+    const r = await fetchWithTimeout(url, 12000, { mode: 'cors' });
+    if (!r.ok) throw new Error('腾讯K线 ' + r.status);
+    const d = await r.json();
+    const node = (d.data && d.data[pfx + code]) || {};
+    const arr = node[per] || Object.values(node).find(v => Array.isArray(v)) || [];
+    if (!arr.length) throw new Error('腾讯K线无数据');
+    const k = { name: code, code: code, dates: [], open: [], high: [], low: [], close: [], vol: [] };
+    for (const a of arr) {
+      k.dates.push(a[0]); k.open.push(+a[1]); k.close.push(+a[2]);
+      k.high.push(+a[3]); k.low.push(+a[4]); k.vol.push(+a[5] || 0);
+    }
+    return k;
+  }
+  async function txQuote(rawCode) {
+    const { pfx, code } = parseCode(rawCode);
+    const r = await fetchWithTimeout('https://qt.gtimg.cn/q=' + pfx + code, 12000, { mode: 'cors' });
+    const buf = await r.arrayBuffer();
+    const text = new TextDecoder('gbk').decode(buf);
+    const m = text.match(/"([^"]*)"/);
+    if (!m) throw new Error('腾讯行情解析失败');
+    const f = m[1].split('~');
+    const price = +f[3], prev = +f[4];
+    return { name: f[1], code: f[2], price, open: +f[5], high: +f[33], low: +f[34],
+             pct: prev ? (price - prev) / prev * 100 : 0 };
+  }
+
+  // —— 原生桥接（Android App 内可用，绕开 WebView CORS；PC 上无此对象则忽略）——
+  function hasBridge() { return (typeof window.AndroidBridge !== 'undefined'); }
+  function bridgeCall(method, code, period) {
+    return new Promise((resolve, reject) => {
+      const cb = '__clb' + (cnt++);
+      window[cb] = (r) => { try { delete window[cb]; } catch (e) {} resolve(r); };
+      try {
+        if (period !== undefined) window.AndroidBridge[method](code, period, 'window.' + cb);
+        else window.AndroidBridge[method](code, 'window.' + cb);
+      } catch (e) { reject(e); }
+    });
+  }
+
+
+  // —— 本地代理服务器（server.py）：Python 服务端拉数据，浏览器只跟 localhost 通信 ——
+  // 这是公司网络环境下的最佳方案：所有外部域名从浏览器端被拦/无 CORS，
+  // 但 Python urllib 在本机走系统代理可以直达数据源。
+  // 启动：在 ChanlunX 目录执行 python server.py，然后打开 http://localhost:8000
+  const LOCAL_BASE = "";   // 空字符串 = 同源（localhost:8000 或同目录）
+  async function localKline(rawCode, klt) {
+    const { pfx, code } = parseCode(rawCode);
+    const per = EM2NAME[klt] || "day";
+    const url = LOCAL_BASE + "/api/kline?code=" + encodeURIComponent(pfx + code) + "&period=" + encodeURIComponent(per);
+    // 平台负载均衡背后多副本，部分副本冷启动需 ~5s 才响应（网关 5.1s 硬超时 → 502）。
+    // 并发打 3 次、用 Promise.any 取「最先成功」的那个：只要负载均衡里有一个热副本就 ~0.5s 返回，
+    // 彻底绕开冷副本的 5s 等待，用户体感从「慢/转圈」变成「秒出」。
+    const one = () => fetchWithTimeout(url, 8000).then(async r => {
+      if (!r.ok) throw new Error("本地服务器K线 " + r.status);
+      const d = await r.json();
+      if (!d || d.error) throw new Error(d.error || "本地服务器返回空");
+      return d;
+    });
+    let d;
+    try {
+      d = await Promise.any([one(), one(), one()]);
+    } catch (e) {
+      const first = (e && e.errors && e.errors[0]) || e;
+      throw new Error((first && first.message) ? first.message : "本地服务器K线全部失败");
+    }
+    return { name: d.name || code, code: d.code || code,
+             dates: d.dates || [], open: d.open || [], high: d.high || [],
+             low: d.low || [], close: d.close || [], vol: d.vol || [] };
+  }
+  async function localQuote(rawCode) {
+    const { pfx, code } = parseCode(rawCode);
+    const url = LOCAL_BASE + "/api/quote?code=" + encodeURIComponent(pfx + code);
+    // 行情同样并发竞速（2 次足够，失败非致命）
+    const one = () => fetchWithTimeout(url, 8000).then(async r => {
+      if (!r.ok) throw new Error("本地服务器行情 " + r.status);
+      const d = await r.json();
+      if (!d || d.error) throw new Error(d.error || "本地服务器返回空");
+      return d;
+    });
+    let d;
+    try {
+      d = await Promise.any([one(), one()]);
+    } catch (e) {
+      const first = (e && e.errors && e.errors[0]) || e;
+      throw new Error((first && first.message) ? first.message : "本地服务器行情全部失败");
+    }
+    return { name: d.name, code: d.code, price: d.price, open: d.open,
+             high: d.high, low: d.low, pct: d.pct };
+  }
+  // 本地服务器是否可用：页面加载时实际 ping 一下 /api/ping，通了才用。
+  // （不能用 hostname 判断——预览面板的 127.0.0.1 也会被误判）
+  // 静态托管模式（GitHub Pages / 任意静态空间）：无本地服务器，永不探测，直接浏览器直连行情
+  let useLocal = false;
+  async function probeLocalServer() {
+    useLocal = false;
+    return false;
+  }
+
+  // —— 公共 CORS 代理（手机 / 跨域环境兜底，无需本地服务器）——
+  const PROXIES = [
+    (u) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+    (u) => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(u),
+    (u) => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
+    (u) => 'https://thingproxy.freeboard.io/fetch/' + u
+  ];
+  async function proxiedArrayBuffer(url) {
+    let lastErr;
+    for (const mk of PROXIES) {
+      try {
+        const r = await fetchWithTimeout(mk(url), 9000, { mode: 'cors' });
+        if (!r.ok) throw new Error('代理 ' + r.status);
+        return await r.arrayBuffer();
+      } catch (e) { lastErr = e; }
+    }
+    throw new Error('所有公共代理均失败（多为网络出口拦截代理域名，换手机流量/家里网络再试）：' + (lastErr ? lastErr.message : ''));
+  }
+  // 新浪 K 线（全周期，含分钟线），经代理拿原始 bytes 再按 UTF-8 解
+  const SINA_SCALE = { '101': 240, '102': 1200, '103': 7200, '109': 60, '108': 30, '107': 15, '106': 5 };
+  async function sinaKlineProxy(rawCode, klt) {
+    const { pfx, code } = parseCode(rawCode);
+    const scale = SINA_SCALE[klt] || 240;
+    const url = 'https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData?symbol=' + pfx + code + '&scale=' + scale + '&ma=no&datalen=400';
+    const buf = await proxiedArrayBuffer(url);
+    const arr = JSON.parse(new TextDecoder('utf-8').decode(buf));
+    if (!Array.isArray(arr) || !arr.length) throw new Error('新浪K线空');
+    const k = { name: code, code: code, dates: [], open: [], high: [], low: [], close: [], vol: [] };
+    for (const a of arr) {
+      k.dates.push(a.day); k.open.push(+a.open); k.close.push(+a.close);
+      k.high.push(+a.high); k.low.push(+a.low); k.vol.push((+a.volume) / 10000);
+    }
+    return k;
+  }
+  // 实时价经代理（腾讯 GBK）兜底
+  async function quoteProxy(rawCode) {
+    const { pfx, code } = parseCode(rawCode);
+    const buf = await proxiedArrayBuffer('https://qt.gtimg.cn/q=' + pfx + code);
+    const m = new TextDecoder('gbk').decode(buf).match(/"([^"]*)"/);
+    if (!m) throw new Error('代理行情解析失败');
+    const f = m[1].split('~');
+    const price = +f[3], prev = +f[4];
+    return { name: f[1], code: f[2], price, open: +f[5], high: +f[33], low: +f[34], pct: prev ? (price - prev) / prev * 100 : 0 };
+  }
+
+  // —— 雪球（Xueqiu）直连：分钟线主力源（5/15/30/60 分钟，无需登录、CORS 放行、公司网络可达）——
+  // 日线需要登录故不使用；分钟线免登录且数据质量高，是东方财富被拦时的最佳替代。
+  const XQ_PERIOD = { '106': '5m', '107': '15m', '108': '30m', '109': '60m' };
+  async function xqKlineBrowser(rawCode, klt) {
+    const xqPer = XQ_PERIOD[klt];
+    if (!xqPer) throw new Error('雪球仅支持分钟线');
+    const { pfx, code } = parseCode(rawCode);
+    const symbol = (pfx === 'sh' ? 'SH' : 'SZ') + code;
+    // begin 取约 1 年前（毫秒时间戳），count 最多拉 500 根
+    const begin = Date.now() - 365 * 86400 * 1000;
+    const url = 'https://stock.xueqiu.com/v5/stock/chart/kline.json'
+      + '?symbol=' + symbol + '&begin=' + begin + '&period=' + xqPer + '&type=before&count=500';
+    const r = await fetchWithTimeout(url, 12000, { mode: 'cors' });
+    if (!r.ok) throw new Error('雪球K线 ' + r.status);
+    const d = await r.json();
+    if (d.error_code !== 0 || !d.data || !Array.isArray(d.data.item) || !d.data.item.length)
+      throw new Error('雪球K线无数据' + (d.error_description ? '：' + d.error_description : ''));
+    // 雪球字段顺序（从 column）：timestamp,volume,open,high,low,close,...
+    const k = { name: code, code: code, dates: [], open: [], high: [], low: [], close: [], vol: [] };
+    for (const row of d.data.item) {
+      const ts = row[0]; // 毫秒时间戳
+      const dt = new Date(ts);
+      // 分钟线日期格式：YYYY-MM-DD HH:MM（与新浪/东财的纯日期区分开）
+      const y = dt.getFullYear(), m = String(dt.getMonth() + 1).padStart(2, '0'),
+            d2 = String(dt.getDate()).padStart(2, '0'), h = String(dt.getHours()).padStart(2, '0'),
+            min = String(dt.getMinutes()).padStart(2, '0');
+      k.dates.push(y + '-' + m + '-' + d2 + ' ' + h + ':' + min);
+      k.open.push(+row[2]); k.close.push(+row[5]);
+      k.high.push(+row[3]); k.low.push(+row[4]);
+      k.vol.push(+row[1] || 0); // volume 单位：股
+    }
+    return k;
+  }
+
+  // —— 东方财富直连（国内大部分网络可达、CORS 放行、全周期含分钟线，不经代理）——
+  // 在雪球不可用时的分钟线备选，以及日/周/月的额外兜底。
+  async function emKlineBrowser(rawCode, klt) {
+    const { secid } = parseCode(rawCode);
+    const url = 'https://push2his.eastmoney.com/api/qt/stock/kline/get'
+      + '?fields1=f1,f2,f3,f4,f5,f6'
+      + '&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61'
+      + '&klt=' + klt + '&fqt=0&secid=' + secid + '&beg=0&end=20500101&lmt=400';
+    const r = await fetchWithTimeout(url, 12000, { mode: 'cors' });
+    if (!r.ok) throw new Error('东方财富K线 ' + r.status);
+    const d = await r.json();
+    const data = d && d.data;
+    if (!data || !Array.isArray(data.klines) || !data.klines.length) throw new Error('东方财富K线无数据');
+    const codeNum = (data.code || secid.split('.')[1] || '').replace(/\D/g, '');
+    const k = { name: data.name || codeNum, code: codeNum, dates: [], open: [], high: [], low: [], close: [], vol: [] };
+    for (const s of data.klines) {
+      const p = s.split(',');
+      // 东方财富字段顺序：date,open,close,high,low,vol（与插件 DataFetcher.emKline 一致）
+      k.dates.push(p[0]); k.open.push(+p[1]); k.close.push(+p[2]);
+      k.high.push(+p[3]); k.low.push(+p[4]); k.vol.push(p.length > 5 ? (+p[5] || 0) : 0);
+    }
+    return k;
+  }
+
+  // —— 数据获取：原生桥接 → 本地服务器(server.py) → 腾讯(日/周/月) → 雪球(分钟线) → 东方财富(全周期) → 新浪代理(兜底) ——
+  async function apiKline(rawCode, klt) {
+    const period = EM2NAME[klt] || 'day';
+    const isMin = !['101', '102', '103'].includes(klt);
+    const pc = parseCode(rawCode);
+    if (hasBridge()) {
+      const d = await bridgeCall('getKline', pc.pfx + pc.code, period);
+      if (d && d.dates && d.dates.length) return d;
+      throw new Error('本地桥接无K线数据');
+    }
+        // 本地服务器（server.py）：Python 服务端拉数据，绕开浏览器 CORS ← 公司网络推荐
+    if (useLocal) {
+      try { return await localKline(rawCode, klt); }
+      catch (e) { /* 继续 */ }
+    }
+    // 日/周/月：腾讯直连（最稳，CORS 放行）
+    if (!isMin) {
+      try { return await txKline(rawCode, klt); }
+      catch (e) { /* 继续 */ }
+    }
+    // 分钟线：雪球直连（免登录、公司网络可达、CORS 放行）← 分钟线主力
+    if (isMin) {
+      try { return await xqKlineBrowser(rawCode, klt); }
+      catch (e) { /* 继续 */ }
+    }
+    // 全周期兜底：东方财富直连
+    try { return await emKlineBrowser(rawCode, klt); }
+    catch (e) { /* 继续 */ }
+    // 最后手段：新浪经公共代理
+    try { return await sinaKlineProxy(rawCode, klt); }
+    catch (e) { throw new Error("无法获取K线数据（腾讯/雪球/东方财富/代理均失败）。日/周/月检查网络；分钟线若失败多为当前网络拦截了数据域名，换手机流量或家里网络再试"); }
+  }async function apiQuote(rawCode) {
+    const { pfx, code } = parseCode(rawCode);
+    if (hasBridge()) {
+      const d = await bridgeCall('getQuote', pfx + code);
+      if (d && d.price != null) return d;
+      throw new Error('本地桥接无行情');
+    }
+    if (useLocal) {
+      try { return await localQuote(rawCode); }
+      catch (e) { /* 继续 */ }
+    }
+    try { return await txQuote(rawCode); }
+    catch (e) { /* 继续 */ }
+    try { return await quoteProxy(rawCode); }
+    catch (e) { throw new Error('无法获取行情'); }
+  }
+
+  function sliceLast(k, N) {
+    const n = k.dates.length, s = Math.max(0, n - N);
+    const cut = (a) => a.slice(s);
+    return { name: k.name, code: k.code, dates: cut(k.dates), open: cut(k.open), high: cut(k.high), low: cut(k.low), close: cut(k.close), vol: cut(k.vol) };
+  }
+
+  async function load(retryCount) {
+    if (typeof retryCount !== 'number') retryCount = 0;
+    const raw = document.getElementById('code').value;
+    const klt = document.getElementById('period').value;
+    if (!raw) { status('请输入股票代码'); return; }
+    if (!parseCode(raw).code) { status('代码格式不正确'); return; }
+    status('加载中…' + (retryCount > 0 ? '（重试 ' + retryCount + '）' : ''));
+    setLoading(true); hideRetry();
+    try {
+      const k = await apiKline(raw, klt);
+      let quote = null;
+      try { quote = await apiQuote(raw); } catch (e) { quote = null; }
+      const view = sliceLast(k, 320);
+      const chan = window.Chanlun.computeChanlun(view.high, view.low);
+      const xlpl = computeXLPL(view);
+      const wl = computeWealthLadder(view);
+      const gaps = computeGaps(view);
+      const n0 = view.close.length;
+      current = { k: view, chan, xlpl, wl, gaps, klt, livePrice: quote ? quote.price : view.close[n0 - 1],
+                  viewStart: Math.max(0, n0 - DEFAULT_BARS), viewCount: Math.min(DEFAULT_BARS, n0) };
+      renderQuote(quote, view);
+      draw();
+      const src = (quote && quote.price != null) ? '实时价 ' + quote.price : '（实时行情不可用，显示最新收盘）';
+      status('已加载 ' + (view.name || raw) + ' · ' + (EM2NAME[klt] || '日线') + ' · ' + src);
+      setLoading(false); hideRetry();
+      addHistory(raw, (quote && quote.name) || view.name || raw, klt);
+      setupRefresh(raw, klt);
+    } catch (e) {
+      // 上游行情偶发慢/限流：自动重试最多 3 次，给服务端「后台续拉」留出时间（通常第 2~3 次即命中缓存秒回）
+      if (retryCount < 5) {
+        // 平台反向代理会在冷实例首次唤醒时偶发 502（约 5s 网关硬超时）；多次重试可跳过冷实例命中已预热实例。
+        // 5 次覆盖「连续多次命中冷实例」的极端情况，确保 60 分钟等分钟线一次性加载成功。
+        const delays = [1000, 2500, 5000, 8000, 12000];
+        const d = delays[Math.min(retryCount, delays.length - 1)] || 1500;
+        status('行情源响应慢，' + (d / 1000) + ' 秒后自动重试（' + (retryCount + 1) + '/5）…');
+        await new Promise(r => setTimeout(r, d));
+        return load(retryCount + 1);
+      }
+      const isMin = !['101','102','103'].includes(klt);
+      const hint = useLocal
+        ? '服务器代理已连上但多次重试仍取不到：上游行情接口偶发慢/限流，可稍后再试，或检查服务端日志。'
+        : (isMin
+            ? '分钟线需要服务器代理：在 ChanlunX 目录运行 python server.py，然后打开 http://localhost:8000/app.html（公司网络下浏览器直连通常会被拦截）。'
+            : '网络/接口可能被拦截；日/周/月线走腾讯直连，若失败建议同样改用服务器代理 server.py。');
+      status('错误：' + e.message + ' —— ' + hint);
+      setLoading(false); showRetry();
+    }
+  }
+
+  function renderQuote(q, view) {
+    if (!q || q.price == null) {
+      const last = view.close[view.close.length - 1];
+      const prev = view.close[view.close.length - 2] || last;
+      const pct = prev ? ((last - prev) / prev * 100) : 0;
+      quoteEl.innerHTML = '<span class="name">' + (view.name || '') + ' ' + view.code + '</span>'
+        + '<span class="price ' + (pct >= 0 ? 'up' : 'down') + '">' + last.toFixed(2) + '</span>'
+        + '<span class="' + (pct >= 0 ? 'up' : 'down') + '">' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%</span>';
+      return;
+    }
+    const cls = q.pct >= 0 ? 'up' : 'down';
+    quoteEl.innerHTML = '<span class="name">' + q.name + ' ' + q.code + '</span>'
+      + '<span class="price ' + cls + '">' + q.price.toFixed(2) + '</span>'
+      + '<span class="' + cls + '">' + (q.pct >= 0 ? '+' : '') + q.pct.toFixed(2) + '%</span>'
+      + '<span>开 ' + q.open.toFixed(2) + '</span><span>高 ' + q.high.toFixed(2) + '</span><span>低 ' + q.low.toFixed(2) + '</span>';
+  }
+
+  function setupRefresh(raw, klt) {
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = setInterval(async () => {
+      try { const q = await apiQuote(raw); current.livePrice = q.price; renderQuote(q, current.k); draw(); }
+      catch (e) { /* 静默 */ }
+    }, 8000);
+  }
+
+  function resizeCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    // 主图高度交给 CSS flex（.main-chart 吃掉首屏剩余空间），副图固定高度 —— K线与指标首屏同显，无需下拉
+    const w = Math.round(cv.clientWidth) || Math.round(cv.parentElement.clientWidth) || 320;
+    const h = Math.max(140, Math.round(cv.clientHeight) || 260);
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
+      cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { w, h };
+  }
+
+  function clampView() {
+    const n = current.k.dates.length;
+    const MIN = 15, MAX = n;
+    if (current.viewCount > MAX) current.viewCount = MAX;
+    if (current.viewCount < MIN) current.viewCount = MIN;
+    if (current.viewStart < 0) current.viewStart = 0;
+    if (current.viewStart + current.viewCount > n) current.viewStart = n - current.viewCount;
+    if (current.viewStart < 0) current.viewStart = 0;
+  }
+
+  // —— 吸拉派落（XLPL）指标：移植通达信公式 ——
+  function emaArr(arr, N) {
+    const out = new Array(arr.length);
+    if (arr.length === 0) return out;
+    out[0] = arr[0];
+    const k = 2 / (N + 1);
+    for (let i = 1; i < arr.length; i++) out[i] = arr[i] * k + out[i - 1] * (1 - k);
+    return out;
+  }
+  // 四阶段判定：EME13 的方向(升/降) × 位置(0轴上下)
+  //   吸 = 0轴下 + 向上（底部吸筹）  拉 = 0轴上 + 向上（拉升）  → 红
+  //   派 = 0轴上 + 向下（高位派发）  落 = 0轴下 + 向下（回落）  → 绿
+  const STAGE = { XI: 0, LA: 1, PAI: 2, LUO: 3 };
+  const STAGE_NAME = ['吸', '拉', '派', '落'];
+  function computeXLPL(k) {
+    const n = k.close.length;
+    const eme = emaArr(emaArr(k.close, 13), 13);          // EMA(EMA(C,13),13)
+    const eme13 = new Array(n).fill(0);
+    for (let i = 1; i < n; i++) eme13[i] = eme[i - 1] ? (eme[i] / eme[i - 1] - 1) * 1000 : 0;
+    const stage = new Array(n).fill(STAGE.XI);
+    for (let i = 1; i < n; i++) {
+      const up = eme13[i] >= eme13[i - 1];                // 动能方向：向上
+      const above = eme13[i] >= 0;                        // 位置：0 轴之上
+      stage[i] = up ? (above ? STAGE.LA : STAGE.XI) : (above ? STAGE.PAI : STAGE.LUO);
+    }
+    const xiZuo = new Array(n).fill(false);     // 昨日指标向上
+    const laJin = new Array(n).fill(false);     // 今日继续向上
+    const xiPan = new Array(n).fill(false);     // 昨日指标<0（洗盘结束）
+    const fangLiang = new Array(n).fill(false); // 成交量较前一日放量
+    const tuPo = new Array(n).fill(false);      // 收盘价突破昨日最高价
+    const xg = new Array(n).fill(false);        // 买点
+    for (let i = 2; i < n; i++) {
+      xiZuo[i] = eme13[i - 1] > eme13[i - 2];
+      laJin[i] = eme13[i] >= 0 && eme13[i] > eme13[i - 1];
+      xiPan[i] = eme13[i - 1] < 0;
+      fangLiang[i] = k.vol[i] > k.vol[i - 1];
+      tuPo[i] = k.close[i] > k.high[i - 1];
+      xg[i] = xiZuo[i] && laJin[i] && xiPan[i] && fangLiang[i] && tuPo[i];
+    }
+    return { eme13, stage, xiZuo, laJin, xiPan, fangLiang, tuPo, xg };
+  }
+
+  // —— 吸拉派落副图（与主图共用视口，时间轴对齐）——
+  // 吸/拉 = 红系，派/落 = 绿系；浅色=酝酿(吸/派)，深色=行进(拉/落)
+  const XL_FILL = ['#f5a0a8', '#e63946', '#9ad4a5', '#2a9d3f'];   // 0吸 1拉 2派 3落
+  const XL_LINE = ['#dd6b76', '#b01f2d', '#4fae63', '#17702a'];
+
+  // —— 财富阶梯指标（主图叠加，移植通达信公式）——
+  function maArr(arr, N) {
+    const n = arr.length, out = new Array(n).fill(null);
+    let sum = 0;
+    for (let i = 0; i < n; i++) { sum += arr[i]; if (i >= N) sum -= arr[i - N]; out[i] = i >= N - 1 ? sum / N : null; }
+    return out;
+  }
+  function barsLast(cond) { // 距上一次 cond 为真的周期数
+    const n = cond.length, out = new Array(n);
+    let last = -1;
+    for (let i = 0; i < n; i++) { if (cond[i]) last = i; out[i] = last < 0 ? n : i - last; }
+    return out;
+  }
+  function crossUp(a, b) { // a 上穿 b
+    const n = a.length, out = new Array(n).fill(false);
+    for (let i = 1; i < n; i++) if (a[i - 1] <= b[i - 1] && a[i] > b[i]) out[i] = true;
+    return out;
+  }
+  function zzTroughs(price, pct) { // ZIG(price, pct%) 的波谷索引序列（TROUGHBARS 依赖）
+    const n = price.length, troughs = [];
+    if (n < 2) return troughs;
+    const th = pct / 100; let dir = 0, idx = 0, val = price[0];
+    for (let i = 1; i < n; i++) {
+      if (dir >= 0) {
+        if (price[i] > val) { idx = i; val = price[i]; }
+        else if (val > 0 && price[i] < val * (1 - th)) { if (dir === 1) troughs.push(idx); dir = -1; idx = i; val = price[i]; }
+      }
+      if (dir <= 0) {
+        if (price[i] < val) { idx = i; val = price[i]; }
+        else if (price[i] > val * (1 + th)) { if (dir === -1) troughs.push(idx); dir = 1; idx = i; val = price[i]; }
+      }
+    }
+    if (dir === -1) troughs.push(idx);
+    return troughs;
+  }
+  function computeWealthLadder(k) {
+    const n = k.close.length, close = k.close, high = k.high, low = k.low;
+    const ema10 = emaArr(close, 10), ema14 = emaArr(close, 14);
+    const tupo = new Array(n);                 // 突破 = REF(EMA(C,14),1)
+    for (let i = 0; i < n; i++) tupo[i] = i > 0 ? ema14[i - 1] : ema14[0];
+    const a1x = new Array(n).fill(0);
+    for (let i = 0; i < n; i++) a1x[i] = tupo[i] ? (ema10[i] - tupo[i]) / tupo[i] * 100 : 0;
+    const zero = new Array(n).fill(0);
+    const blUp = barsLast(crossUp(a1x, zero)); // 距 A1X 上穿 0
+    const blDn = barsLast(crossUp(zero, a1x)); // 距 A1X 下穿 0
+    const duofang = new Array(n).fill(null), kongfang = new Array(n).fill(null);
+    for (let i = 0; i < n; i++) {
+      if (a1x[i] >= 0) { const j = i - (blUp[i] + 1); if (j >= 0) duofang[i] = ema10[j]; }
+      else { const j = i - (blDn[i] + 1); if (j >= 0) kongfang[i] = ema10[j]; }
+    }
+    let hi = -Infinity, hiIdx = 0;             // 前高收盘价：HHVBARS(H,0) 对应收盘
+    for (let i = 0; i < n; i++) if (high[i] > hi) { hi = high[i]; hiIdx = i; }
+    const troughs = zzTroughs(close, 5);        // 波段前低：最近 5% 波谷那根最低价
+    let bdIdx = -1;
+    for (const t of troughs) if (t <= n - 1) bdIdx = t;
+    return {
+      ma3: maArr(close, 3), ma5: maArr(close, 5), ma10: maArr(close, 10),
+      ma20: maArr(close, 20), ma60: maArr(close, 60), ma120: maArr(close, 120),
+      ema20: emaArr(close, 20),
+      tupo, duofang, kongfang, a1x,
+      qianGaoClose: close[hiIdx], boduanQianDi: bdIdx >= 0 ? low[bdIdx] : null
+    };
+  }
+  // —— 跳空缺口检测（主图强化提示未补缺口）——
+  // 向上跳空：low[i] > high[i-1]，缺口区间 [high[i-1], low[i]]
+  // 向下跳空：high[i] < low[i-1]，缺口区间 [high[i], low[i-1]]
+  // 被补判定：向上缺口=后续某根 low <= 缺口下沿(前高) 即回补；向下缺口=后续某根 high >= 缺口上沿(前低) 即回补
+  function computeGaps(k) {
+    const n = k.close.length, high = k.high, low = k.low;
+    const gaps = [];
+    for (let i = 1; i < n; i++) {
+      if (low[i] > high[i - 1]) gaps.push({ bar: i, dir: 1, gLo: high[i - 1], gHi: low[i], filled: false });
+      else if (high[i] < low[i - 1]) gaps.push({ bar: i, dir: -1, gLo: high[i], gHi: low[i - 1], filled: false });
+    }
+    for (const g of gaps) {
+      for (let j = g.bar + 1; j < n; j++) {
+        if (g.dir > 0 && low[j] <= g.gLo) { g.filled = true; break; }
+        if (g.dir < 0 && high[j] >= g.gHi) { g.filled = true; break; }
+      }
+    }
+    return gaps;
+  }
+  // 主图叠加财富阶梯（K 线之后绘制；均线/柱/水平线，极浅柱不挡 K 线）
+  function drawWealthLadder() {
+    if (!current || !current.wl) return;
+    const m = current._map; if (!m) return;
+    const wl = current.wl, vs = current.viewStart, ve = vs + current.viewCount;
+    const xOf = m.xOf, yOf = m.yOf, padL = m.padL, pR = m.padL + m.plotW;
+    const bw = Math.max(1.5, m.plotW / current.viewCount * 0.62);
+    const line = (arr, color, lw) => {
+      ctx.lineWidth = lw; ctx.strokeStyle = color; ctx.beginPath(); let started = false;
+      for (let i = vs; i < ve; i++) {
+        if (arr[i] == null) { started = false; continue; }
+        const x = xOf(i), y = yOf(arr[i]);
+        if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    };
+    // 均线
+    line(wl.ma3, '#1f6feb', 1); line(wl.ma5, '#1f2329', 1);
+    line(wl.ma10, '#e63946', 1.3); line(wl.ma20, '#c026d3', 1.3);
+    line(wl.ma60, '#2a9d3f', 1.3); line(wl.ma120, '#8a5a2b', 1.3);
+    line(wl.ema20, '#8a5a2b', 1);
+    // 阶梯柱（极浅色，不挡 K 线）：多方=淡红，空方=淡蓝
+    for (let i = vs; i < ve; i++) {
+      if (wl.a1x[i] >= 0 && wl.duofang[i] != null) {
+        const y1 = yOf(wl.duofang[i]), y2 = yOf(wl.tupo[i]);
+        ctx.fillStyle = 'rgba(230,57,70,.16)';
+        ctx.fillRect(xOf(i) - bw / 2, Math.min(y1, y2), bw, Math.abs(y1 - y2));
+      } else if (wl.a1x[i] < 0 && wl.kongfang[i] != null) {
+        const y1 = yOf(wl.kongfang[i]), y2 = yOf(wl.tupo[i]);
+        ctx.fillStyle = 'rgba(42,130,200,.16)';
+        ctx.fillRect(xOf(i) - bw / 2, Math.min(y1, y2), bw, Math.abs(y1 - y2));
+      }
+    }
+    // 阶梯线（多方红 / 空方蓝）+ 突破线
+    line(wl.duofang, 'rgba(210,40,55,.92)', 1.4);
+    line(wl.kongfang, 'rgba(30,110,190,.92)', 1.4);
+    line(wl.tupo, 'rgba(120,120,120,.55)', 1);
+    // 前高收盘价（红虚线）
+    if (wl.qianGaoClose != null && wl.qianGaoClose >= m.pmin && wl.qianGaoClose <= m.pmax) {
+      const y = yOf(wl.qianGaoClose);
+      ctx.strokeStyle = '#e63946'; ctx.lineWidth = 2; ctx.setLineDash([6, 3]);
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(pR, y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = '#e63946'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+      ctx.fillText('前高收 ' + wl.qianGaoClose.toFixed(2), pR - 2, y - 1);
+    }
+    // 波段前低（绿虚线）
+    if (wl.boduanQianDi != null && wl.boduanQianDi >= m.pmin && wl.boduanQianDi <= m.pmax) {
+      const y = yOf(wl.boduanQianDi);
+      ctx.strokeStyle = '#2a9d3f'; ctx.lineWidth = 2; ctx.setLineDash([6, 3]);
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(pR, y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = '#2a9d3f'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillText('波段前低 ' + wl.boduanQianDi.toFixed(2), padL + 2, y + 1);
+    }
+  }
+  // 强化提示未补缺口：半透明色带(从缺口那根延伸到当前) + 上下沿虚线 + 标签
+  function drawGaps() {
+    if (!current || !current.gaps) return;
+    const m = current._map; if (!m) return;
+    const vs = current.viewStart, ve = vs + current.viewCount;
+    const xOf = m.xOf, yOf = m.yOf, padL = m.padL, pR = m.padL + m.plotW;
+    for (const g of current.gaps) {
+      if (g.filled) continue;                       // 只提示未补的
+      if (g.bar > ve - 1) continue;                 // 缺口起点在视口右侧之外，不画
+      const yT = yOf(g.gHi), yB = yOf(g.gLo);
+      if (yT > m.padT + m.plotH || yB < m.padT) continue;  // 缺口价区完全在视口外
+      const xStart = Math.max(padL, xOf(Math.max(g.bar, vs)));
+      const col = g.dir > 0 ? '230,57,70' : '42,157,63';   // 红=向上跳空 绿=向下跳空(涨红跌绿)
+      ctx.fillStyle = 'rgba(' + col + ',.14)';
+      ctx.fillRect(xStart, yT, pR - xStart, yB - yT);
+      // 上下沿虚线 + 缺口起点竖线
+      ctx.strokeStyle = 'rgba(' + col + ',.9)'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 3]);
+      ctx.beginPath(); ctx.moveTo(xStart, yT); ctx.lineTo(pR, yT); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(xStart, yB); ctx.lineTo(pR, yB); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = 'rgba(' + col + ',.45)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(xOf(g.bar), yT); ctx.lineTo(xOf(g.bar), yB); ctx.stroke();
+      // 标签：方向 + 价格区间 + 未补
+      ctx.fillStyle = 'rgb(' + col + ')'; ctx.font = 'bold 10px sans-serif';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+      const lbl = (g.dir > 0 ? '↑缺口 ' : '↓缺口 ') + g.gLo.toFixed(2) + '–' + g.gHi.toFixed(2) + ' 未补';
+      ctx.fillText(lbl, xStart + 2, yT - 1);
+    }
+  }
+  function drawXLPL() {
+    if (!current || !current.xlpl) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.round(cvx.clientWidth) || Math.round(cvx.parentElement.clientWidth) || 320;
+    const h = Math.max(80, Math.round(cvx.clientHeight) || 140);
+    if (cvx.width !== Math.round(w * dpr) || cvx.height !== Math.round(h * dpr)) {
+      cvx.width = Math.round(w * dpr); cvx.height = Math.round(h * dpr);
+    }
+    ctxX.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctxX.clearRect(0, 0, w, h);
+
+    const k = current.k, xl = current.xlpl;
+    const vs = current.viewStart, vc = current.viewCount, ve = vs + vc, n = k.dates.length;
+    const padL = 60, padR = 14, plotW = w - padL - padR;    // 与主图完全一致，保证时间轴对齐
+    const plotT = 22, plotB = h - 16, plotH = plotB - plotT;
+
+    let lo = Infinity, hi = -Infinity;
+    for (let i = vs; i < ve; i++) { const v = xl.eme13[i]; if (v < lo) lo = v; if (v > hi) hi = v; }
+    if (!isFinite(lo)) { lo = -1; hi = 1; }
+    if (lo > 0) lo = 0; if (hi < 0) hi = 0;            // 保证 0 轴可见
+    const pad = (hi - lo) * 0.14 || 1; lo -= pad; hi += pad;
+    const xOf = (i) => padL + ((i - vs) + 0.5) / vc * plotW;
+    const yOf = (v) => plotT + (hi - v) / (hi - lo) * plotH;
+    const y0 = yOf(0);
+
+    // ① 正负分区底色：0 轴之上=吸拉区(淡红)、之下=派落区(淡绿)
+    ctxX.fillStyle = 'rgba(230,57,70,.06)';
+    ctxX.fillRect(padL, plotT, plotW, Math.max(0, y0 - plotT));
+    ctxX.fillStyle = 'rgba(42,157,63,.06)';
+    ctxX.fillRect(padL, y0, plotW, Math.max(0, plotB - y0));
+
+    ctxX.fillStyle = '#8a9099'; ctxX.textAlign = 'left'; ctxX.textBaseline = 'middle'; ctxX.font = '11px sans-serif';
+    const title = '吸拉派落 XLPL · EME13';
+    ctxX.fillText(title, padL, 11);
+
+    // 当前阶段色块（视图内最后一根）：吸/拉红系，派/落绿系
+    if (ve > vs) {
+      const st = xl.stage[ve - 1];
+      const bx = padL + ctxX.measureText(title).width + 10;
+      ctxX.fillStyle = XL_FILL[st];
+      ctxX.fillRect(bx, 4, 30, 14);
+      ctxX.fillStyle = '#fff'; ctxX.font = 'bold 11px sans-serif'; ctxX.textAlign = 'center';
+      ctxX.fillText(STAGE_NAME[st], bx + 15, 11);
+      ctxX.font = '11px sans-serif'; ctxX.textAlign = 'left'; ctxX.fillStyle = '#8a9099';
+    }
+
+    // ② 四阶段柱：吸/拉=红系（动能向上），派/落=绿系（动能向下），柱高=EME13 强弱
+    const bw = Math.max(1, Math.min(9, plotW / vc * 0.62));
+    for (let i = vs; i < ve; i++) {
+      const v = xl.eme13[i], x = xOf(i), y = yOf(v), st = xl.stage[i];
+      const top = Math.min(y, y0), bh = Math.max(1, Math.abs(y - y0));
+      ctxX.fillStyle = XL_FILL[st];
+      ctxX.fillRect(x - bw / 2, top, bw, bh);
+    }
+
+    // ③ EME13 折线（同色加深，叠在柱上，保留连续趋势）
+    ctxX.lineWidth = 1.2;
+    let prevX = null, prevY = null;
+    for (let i = vs; i < ve; i++) {
+      const x = xOf(i), y = yOf(xl.eme13[i]);
+      if (prevX !== null) {
+        ctxX.strokeStyle = XL_LINE[xl.stage[i]];
+        ctxX.beginPath(); ctxX.moveTo(prevX, prevY); ctxX.lineTo(x, y); ctxX.stroke();
+      }
+      prevX = x; prevY = y;
+    }
+
+    // ④ 0 轴强化：2px 深色主线 + 两端端头刻度 + 0/上下界标注
+    ctxX.save();
+    ctxX.strokeStyle = '#39414e'; ctxX.lineWidth = 2;
+    ctxX.beginPath(); ctxX.moveTo(padL, y0); ctxX.lineTo(w - padR, y0); ctxX.stroke();
+    ctxX.strokeStyle = '#39414e'; ctxX.lineWidth = 1.4;
+    ctxX.beginPath();
+    ctxX.moveTo(padL, y0 - 4); ctxX.lineTo(padL, y0 + 4);
+    ctxX.moveTo(w - padR, y0 - 4); ctxX.lineTo(w - padR, y0 + 4);
+    ctxX.stroke();
+    ctxX.fillStyle = '#39414e'; ctxX.font = 'bold 11px sans-serif'; ctxX.textAlign = 'right'; ctxX.textBaseline = 'middle';
+    ctxX.fillText('0', padL - 6, y0);
+    ctxX.font = '11px sans-serif'; ctxX.textAlign = 'left'; ctxX.fillStyle = '#8a9099';
+    ctxX.fillText('0 轴', padL + 4, y0 - 9);
+    ctxX.textAlign = 'right';
+    ctxX.fillText(hi.toFixed(1), padL - 6, plotT + 4);
+    ctxX.fillText(lo.toFixed(1), padL - 6, plotB - 4);
+    ctxX.restore();
+
+    // 买点 XG：金色上三角
+    ctxX.fillStyle = '#e6a700';
+    for (let i = vs; i < ve; i++) {
+      if (xl.xg[i]) {
+        const x = xOf(i), y = plotT;
+        ctxX.beginPath(); ctxX.moveTo(x, y); ctxX.lineTo(x - 5, y + 8); ctxX.lineTo(x + 5, y + 8); ctxX.closePath(); ctxX.fill();
+      }
+    }
+
+    // 最新一根的组件状态
+    const li = n - 1;
+    if (li >= 2) {
+      const tag = (b) => b ? '✓' : '✗';
+      const parts = ['吸昨' + tag(xl.xiZuo[li]), '拉今' + tag(xl.laJin[li]), '洗盘' + tag(xl.xiPan[li]),
+        '放量' + tag(xl.fangLiang[li]), '破高' + tag(xl.tuPo[li])];
+      ctxX.fillStyle = xl.xg[li] ? '#e6a700' : '#8a9099'; ctxX.textAlign = 'right';
+      ctxX.fillText(parts.join('  '), w - padR, 11);
+    }
+
+    // 十字光标竖线（与主图联动）
+    if (current.cross) {
+      const px = current.cross.px;
+      if (px >= padL && px <= w - padR) {
+        ctxX.strokeStyle = 'rgba(31,35,41,.38)'; ctxX.setLineDash([4, 3]); ctxX.lineWidth = 1;
+        ctxX.beginPath(); ctxX.moveTo(px, plotT); ctxX.lineTo(px, plotB); ctxX.stroke(); ctxX.setLineDash([]);
+      }
+    }
+  }
+
+  function draw() {
+    if (!current) return;
+    const { w, h } = resizeCanvas();
+    const k = current.k, chan = current.chan, n = k.dates.length;
+    const vs = current.viewStart, vc = current.viewCount;       // 视口：可见的 [vs, vs+vc)
+    const ve = vs + vc;
+    ctx.clearRect(0, 0, w, h);
+    const padL = 60, padR = 14, padT = 14, padB = 26;
+    const plotW = w - padL - padR, plotH = h - padT - padB;
+
+    let pmin = Infinity, pmax = -Infinity;
+    for (let i = vs; i < ve; i++) { if (k.low[i] < pmin) pmin = k.low[i]; if (k.high[i] > pmax) pmax = k.high[i]; }
+    for (const pv of chan.biPivots.concat(chan.duanPivots)) {
+      const a = Math.max(pv.s, vs), b = Math.min(pv.e, ve - 1);
+      if (a <= b) { if (pv.zd < pmin) pmin = pv.zd; if (pv.zg > pmax) pmax = pv.zg; }
+    }
+    const pad = (pmax - pmin) * 0.06 || 1; pmin -= pad; pmax += pad;
+    const xOf = (absIdx) => padL + ((absIdx - vs) + 0.5) / vc * plotW;
+    const yOf = (p) => padT + (pmax - p) / (pmax - pmin) * plotH;
+
+    ctx.strokeStyle = '#eef1f5'; ctx.fillStyle = '#8a9099'; ctx.font = '11px sans-serif'; ctx.lineWidth = 1;
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (let t = 0; t <= 6; t++) {
+      const p = pmin + (pmax - pmin) * t / 6, y = yOf(p);
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+      ctx.fillText(p.toFixed(2), padL - 6, y);
+    }
+
+    function drawBand(pv, color) {
+      let x1 = xOf(pv.s + 1), x2 = xOf(pv.e - 1);
+      if (x2 < padL || x1 > w - padR) return;             // 完全在视口外
+      x1 = Math.max(padL, x1); x2 = Math.min(w - padR, x2);
+      if (x2 - x1 < 1) return;
+      const yT = yOf(pv.zg), yB = yOf(pv.zd);
+      ctx.fillStyle = color + '22'; ctx.fillRect(x1, yT, x2 - x1, yB - yT);
+      ctx.strokeStyle = color + 'aa'; ctx.lineWidth = 1; ctx.strokeRect(x1, yT, x2 - x1, yB - yT);
+    }
+    for (const pv of chan.biPivots) drawBand(pv, '#e6a700');
+    for (const pv of chan.duanPivots) drawBand(pv, '#ff7a1a');
+
+    const bw = Math.max(1.2, plotW / vc * 0.62);
+    for (let i = vs; i < ve; i++) {
+      const x = xOf(i), yh = yOf(k.high[i]), yl = yOf(k.low[i]), yo = yOf(k.open[i]), yc = yOf(k.close[i]);
+      const up = k.close[i] >= k.open[i];
+      ctx.strokeStyle = up ? '#e63946' : '#2a9d3f'; ctx.fillStyle = up ? '#e63946' : '#2a9d3f'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, yh); ctx.lineTo(x, yl); ctx.stroke();
+      const top = Math.min(yo, yc), bh = Math.max(1, Math.abs(yc - yo));
+      ctx.fillRect(x - bw / 2, top, bw, bh);
+    }
+
+    drawGaps();
+
+    function poly(points, color) {
+      if (points.length < 2) return;
+      ctx.strokeStyle = color; ctx.lineWidth = 1.6; ctx.setLineDash([]);
+      ctx.beginPath(); let started = false;
+      for (const pt of points) { const x = xOf(pt.i), y = yOf(pt.p); if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y); }
+      ctx.stroke();
+    }
+    const biPts = [], duanPts = [];
+    for (let i = vs; i < ve; i++) {
+      if (chan.frac[i] === 1) biPts.push({ i, p: k.high[i] });
+      else if (chan.frac[i] === -1) biPts.push({ i, p: k.low[i] });
+      if (chan.duan[i] === 1) duanPts.push({ i, p: k.high[i] });
+      else if (chan.duan[i] === -1) duanPts.push({ i, p: k.low[i] });
+    }
+    poly(biPts, '#e6a700');
+    poly(duanPts, '#ff7a1a');
+
+    if (current.livePrice) {
+      const y = yOf(current.livePrice);
+      ctx.strokeStyle = current.livePrice >= k.close[n - 1] ? '#e63946' : '#2a9d3f';
+      ctx.setLineDash([5, 4]); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke(); ctx.setLineDash([]);
+    }
+
+    ctx.fillStyle = '#8a9099'; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.font = '11px sans-serif';
+    const step = Math.max(1, Math.floor(vc / 8));
+    for (let i = vs; i < ve; i += step) {
+      const d = k.dates[i], label = (d && d.length >= 10) ? d.slice(5) : d;
+      ctx.fillText(label, xOf(i), h - padB + 6);
+    }
+    current._map = { padL, padR, padT, padB, plotW, plotH, xOf, yOf, pmin, pmax, n, vs, vc };
+    drawCrosshair();
+    drawWealthLadder();
+    drawXLPL();
+  }
+
+  // —— 十字光标（像炒股软件：跟随鼠标画横竖线 + 右轴价格/底轴日期标签）——
+  function drawCrosshair() {
+    if (!current || !current.cross) return;
+    const m = current._map; if (!m) return;
+    const px = current.cross.px, py = current.cross.py;
+    if (px < m.padL || px > m.padL + m.plotW || py < m.padT || py > m.padT + m.plotH) return;
+    const k = current.k;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(31,35,41,.38)'; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(px, m.padT); ctx.lineTo(px, m.padT + m.plotH); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(m.padL, py); ctx.lineTo(m.padL + m.plotW, py); ctx.stroke();
+    ctx.setLineDash([]);
+    // 左侧价格标签（避免挡住右侧最新 K 线）
+    const price = m.pmax - (py - m.padT) / m.plotH * (m.pmax - m.pmin);
+    ctx.font = '11px sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    const pl = price.toFixed(2);
+    const pw = ctx.measureText(pl).width + 12;
+    ctx.fillStyle = '#2f6fed';
+    ctx.fillRect(m.padL - pw, py - 9, pw, 18);
+    ctx.fillStyle = '#fff'; ctx.fillText(pl, m.padL - pw + 6, py);
+    // 底部日期标签
+    const i = Math.max(0, Math.min(m.n - 1, Math.round((px - m.padL) / m.plotW * m.vc + m.vs)));
+    const dl = (k.dates[i] || '').slice(5);
+    if (dl) {
+      ctx.textBaseline = 'top'; ctx.textAlign = 'center';
+      const dw = ctx.measureText(dl).width + 12;
+      let dx = px - dw / 2; dx = Math.max(m.padL, Math.min(m.padL + m.plotW - dw, dx));
+      ctx.fillStyle = '#2f6fed';
+      ctx.fillRect(dx, m.padT + m.plotH, dw, 16);
+      ctx.fillStyle = '#fff'; ctx.fillText(dl, dx + dw / 2, m.padT + m.plotH + 2);
+    }
+    ctx.restore();
+  }
+
+  // —— 缩放 / 平移 ——
+  function xToAbs(x) {
+    const m = current._map;
+    let i = Math.floor((x - m.padL) / m.plotW * m.vc + m.vs);
+    return Math.max(0, Math.min(m.n - 1, i));
+  }
+  cv.addEventListener('wheel', (e) => {
+    if (!current || !current._map) return;
+    e.preventDefault();
+    const rect = cv.getBoundingClientRect();
+    const factor = e.deltaY < 0 ? 0.85 : 1 / 0.85;   // 上滚缩小->显示更多(放大K线)
+    const newCount = Math.round(current.viewCount * factor);
+    // 缩放锚定最新K线（视图右边缘）：滚轮缩放时最新一根始终贴右，不随光标飘
+    const n = current.k.dates.length;
+    current.viewCount = newCount; current.viewStart = n - newCount;
+    clampView(); draw();
+  }, { passive: false });
+
+  let drag = null;
+  cv.addEventListener('mousedown', (e) => {
+    if (!current) return;
+    drag = { x: e.clientX, start: current.viewStart };
+    cv.style.cursor = 'grabbing';
+  });
+  window.addEventListener('mouseup', () => { if (drag) { drag = null; cv.style.cursor = 'crosshair'; } });
+  cv.addEventListener('mousemove', (e) => {
+    if (!current || !current._map) return;
+    const rect = cv.getBoundingClientRect();
+    if (drag) {
+      const dxBars = (e.clientX - drag.x) / current._map.plotW * current._map.vc;
+      current.viewStart = drag.start - Math.round(dxBars);
+      clampView(); draw(); tooltip.style.display = 'none';
+      return;
+    }
+    const x = e.clientX - rect.left;
+    current.cross = { px: x, py: e.clientY - rect.top };
+    showTooltip(e.clientX, e.clientY, xToAbs(x));
+    draw();
+  });
+  cv.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; if (current) { current.cross = null; draw(); } });
+  function resetView() {
+    if (!current) return;
+    const n0 = current.k.dates.length;
+    current.viewStart = Math.max(0, n0 - DEFAULT_BARS); current.viewCount = Math.min(DEFAULT_BARS, n0); draw();
+  }
+
+  cv.addEventListener('dblclick', resetView);
+
+  // —— 悬浮提示（鼠标 / 触摸共用）——
+  function showTooltip(clientX, clientY, i) {
+    if (!current) return;
+    const k = current.k;
+    let info = '<b>' + (k.dates[i] || '') + '</b><br>开 ' + k.open[i].toFixed(2) + ' 收 ' + k.close[i].toFixed(2)
+      + '<br>高 ' + k.high[i].toFixed(2) + ' 低 ' + k.low[i].toFixed(2);
+    if (current.chan.frac[i] === 1) info += '<br><span style="color:#e6a700">笔顶</span>';
+    else if (current.chan.frac[i] === -1) info += '<br><span style="color:#e6a700">笔底</span>';
+    if (current.chan.duan[i] === 1) info += '<br><span style="color:#ff7a1a">段顶</span>';
+    else if (current.chan.duan[i] === -1) info += '<br><span style="color:#ff7a1a">段底</span>';
+    for (const pv of current.chan.biPivots) if (i >= pv.s && i <= pv.e) info += '<br>笔中枢 ZG ' + pv.zg.toFixed(2) + ' / ZD ' + pv.zd.toFixed(2);
+    for (const pv of current.chan.duanPivots) if (i >= pv.s && i <= pv.e) info += '<br>段中枢 ZG ' + pv.zg.toFixed(2) + ' / ZD ' + pv.zd.toFixed(2);
+    tooltip.innerHTML = info;
+    tooltip.style.display = 'block';
+    const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+    const wrap = tooltip.parentElement.getBoundingClientRect();
+    let left = clientX - wrap.left + 14, top = clientY - wrap.top + 14;
+    if (left + tw > wrap.width) left = clientX - wrap.left - tw - 14;
+    if (left < 0) left = 0;
+    if (top + th > wrap.height) top = clientY - wrap.top - th - 14;
+    if (top < 0) top = 0;
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = top + 'px';
+  }
+
+  // —— 触摸手势（手机）：单指 上下推=缩放 / 左右推=平移（锚定在抓取的那根K线）；双指捏合=缩放；双击/双触=复位 ——
+  function touchDist(a, b) { return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); }
+  function touchMidAbs(a, b) {
+    const m = current._map, x = (a.clientX + b.clientX) / 2;
+    return Math.max(0, Math.min(m.n - 1, Math.floor((x - m.padL) / m.plotW * m.vc + m.vs)));
+  }
+  const ZOOM_STEP = 50;   // 垂直每滑动约 50px ≈ 滚轮一格缩放
+  let touch = null, lastTapT = 0, lastTapX = 0, lastTapY = 0;
+  cv.addEventListener('touchstart', (e) => {
+    if (!current || !current._map) return;
+    e.preventDefault();
+    if (e.touches.length === 1) {
+      const t = e.touches[0], r = cv.getBoundingClientRect();
+      touch = { mode: 'pan',
+        vs0: current.viewStart, vc0: current.viewCount,
+        x0: t.clientX - r.left, y0: t.clientY - r.top,
+        moved: false, tx: t.clientX, ty: t.clientY };
+    } else if (e.touches.length === 2) {
+      const [a, b] = e.touches;
+      touch = { mode: 'zoom', dist: touchDist(a, b), vs: current.viewStart, vc: current.viewCount, mid: touchMidAbs(a, b) };
+    }
+  }, { passive: false });
+  cv.addEventListener('touchmove', (e) => {
+    if (!current || !touch || !current._map) return;
+    e.preventDefault();
+    const m = current._map;
+    if (touch.mode === 'pan' && e.touches.length === 1) {
+      const t = e.touches[0], r2 = cv.getBoundingClientRect();
+      const xLocal = t.clientX - r2.left, yLocal = t.clientY - r2.top;
+      // 垂直位移 -> 缩放（上推放大、下推缩小）；水平位移 -> 平移；两者锚定在起始抓取的那根K线
+      const dyTotal = yLocal - touch.y0;
+      const factor = Math.pow(0.85, -dyTotal / ZOOM_STEP);   // 上推(dyTotal<0) => factor<1 => 放大(根数变少)
+      const newCount = Math.round(touch.vc0 * factor);
+      // 缩放锚定「当前视图右边缘」（通常即最新K线）：最新一根随手指缩放始终贴右；
+      // 水平位移继续作平移（相对起始抓取点），避免一触碰就跳变。
+      const panDelta = (xLocal - touch.x0) / m.plotW * newCount;
+      current.viewCount = newCount;
+      current.viewStart = Math.round(touch.vs0 + touch.vc0 - newCount - panDelta);
+      clampView(); draw();
+      if (Math.abs(t.clientX - touch.tx) > 6 || Math.abs(t.clientY - touch.ty) > 6) touch.moved = true;
+      current.cross = { px: xLocal, py: yLocal };
+      showTooltip(t.clientX, t.clientY, xToAbs(xLocal));
+    } else if (touch.mode === 'zoom' && e.touches.length === 2) {
+      const [a, b] = e.touches;
+      const dist = touchDist(a, b);
+      const factor = touch.dist / (dist || 1);
+      const newCount = Math.round(touch.vc * factor);
+      // 缩放锚定最新K线（视图右边缘）：双指捏合时最新一根始终贴右
+      const n = current.k.dates.length;
+      current.viewCount = newCount; current.viewStart = n - newCount;
+      clampView(); draw();
+    }
+  }, { passive: false });
+  cv.addEventListener('touchend', (e) => {
+    if (!touch) return;
+    if (touch.mode === 'pan' && !touch.moved) {
+      const t = e.changedTouches[0];
+      const now = Date.now();
+      if (now - lastTapT < 320 && Math.hypot(t.clientX - lastTapX, t.clientY - lastTapY) < 30) {
+        resetView(); lastTapT = 0;
+      } else { lastTapT = now; lastTapX = t.clientX; lastTapY = t.clientY; }
+      tooltip.style.display = 'none';
+    }
+    if (e.touches.length === 0) { touch = null; if (current) { current.cross = null; draw(); } }
+    else if (e.touches.length === 1) {
+      const t = e.touches[0], r = cv.getBoundingClientRect();
+      touch = { mode: 'pan', vs0: current.viewStart, vc0: current.viewCount,
+        x0: t.clientX - r.left, y0: t.clientY - r.top, moved: true, tx: t.clientX, ty: t.clientY };
+    }
+  }, { passive: false });
+  cv.addEventListener('touchcancel', () => { touch = null; if (current) { current.cross = null; draw(); } tooltip.style.display = 'none'; });
+
+  // —— 加载骨架屏 / 失败重试 / K线存图 ——
+  const loadingEl = document.getElementById('loading');
+  const retryEl = document.getElementById('retry');
+  function setLoading(on) { loadingEl.style.display = on ? 'flex' : 'none'; }
+  function showRetry() { retryEl.style.display = 'inline-block'; }
+  function hideRetry() { retryEl.style.display = 'none'; }
+  function saveImage() {
+    if (!current) { status('暂无可导出的图'); return; }
+    try {
+      cv.toBlob((blob) => {
+        if (!blob) { status('导出失败：画布为空'); return; }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const tag = (current.k.code || 'chart') + '_' + (EM2NAME[current.klt] || 'day');
+        a.href = url; a.download = 'chanlun_' + tag + '.png';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
+        status('已存图（去相册/下载目录找，可发群）');
+      }, 'image/png');
+    } catch (e) { status('导出失败：' + e.message); }
+  }
+  retryEl.addEventListener('click', load);
+  document.getElementById('save').addEventListener('click', saveImage);
+
+  // —— 查询历史（localStorage 持久化，点标签重新加载）——
+  const historyEl = document.getElementById('history');
+  function normKey(raw) { const p = parseCode(raw); return p.pfx + p.code; }
+  function loadHistory() { try { return JSON.parse(localStorage.getItem('chanlunx_history') || '[]'); } catch (e) { return []; } }
+  function saveHistory(list) { try { localStorage.setItem('chanlunx_history', JSON.stringify(list.slice(0, 30))); } catch (e) {} }
+  function addHistory(raw, name, klt) {
+    const key = normKey(raw);
+    let list = loadHistory().filter((it) => it.key !== key);
+    list.unshift({ key: key, name: name || key, period: klt });
+    list = list.slice(0, 30);
+    saveHistory(list); renderHistory();
+  }
+  function removeHistory(key) { saveHistory(loadHistory().filter((it) => it.key !== key)); renderHistory(); }
+  function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  function renderHistory() {
+    const list = loadHistory();
+    if (!list.length) { historyEl.innerHTML = ''; historyEl.style.display = 'none'; return; }
+    historyEl.style.display = 'flex';
+    let html = '';
+    for (const it of list) {
+      const code = it.key.replace(/^(sh|sz|bj)/, '');
+      const label = (it.name && it.name !== it.key) ? (esc(it.name) + ' ' + code) : code;
+      html += '<span class="chip" data-key="' + it.key + '" data-period="' + it.period + '">' + label + '<span class="x" data-del="' + it.key + '">×</span></span>';
+    }
+    html += '<button class="clear" id="clearHist">清空</button>';
+    historyEl.innerHTML = html;
+  }
+  historyEl.addEventListener('click', (e) => {
+    const del = e.target.getAttribute('data-del');
+    if (del) { e.stopPropagation(); removeHistory(del); return; }
+    if (e.target.id === 'clearHist') { saveHistory([]); renderHistory(); return; }
+    const chip = e.target.closest('.chip');
+    if (chip) {
+      document.getElementById('code').value = chip.getAttribute('data-key');
+      document.getElementById('period').value = chip.getAttribute('data-period');
+      load();
+    }
+  });
+
+  document.getElementById('go').addEventListener('click', load);
+  document.getElementById('reset').addEventListener('click', resetView);
+  document.getElementById('code').addEventListener('keydown', (e) => { if (e.key === 'Enter') load(); });
+  // 视口/容器尺寸变化都重绘（flex 布局下，说明展开、历史标签出现不会触发 window.resize）
+  let rzTimer = null;
+  function redrawSoon() { if (!current) return; clearTimeout(rzTimer); rzTimer = setTimeout(() => draw(), 60); }
+  window.addEventListener('resize', redrawSoon);
+  window.addEventListener('orientationchange', redrawSoon);
+  try {
+    if (window.ResizeObserver) {
+      const ro = new ResizeObserver(redrawSoon);
+      ro.observe(document.querySelector('.chart-wrap'));
+      ro.observe(document.querySelector('.main-chart'));
+      ro.observe(cvx);
+    }
+    document.querySelector('.hint').addEventListener('toggle', redrawSoon);
+  } catch (e) {}
+  if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+    // 带版本号注册：sw.js 内容一变就会触发更新，避免旧 SW 一直掌权
+    window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js?v=' + APP_VER).catch(() => {}); });
+  }
+
+  // 「清缓存重载」：注销 Service Worker + 清空所有 Cache Storage，然后强刷
+  document.getElementById('clearcache').addEventListener('click', async () => {
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister()));
+      }
+      if (window.caches) {
+        const ks = await caches.keys();
+        await Promise.all(ks.map((k) => caches.delete(k)));
+      }
+    } catch (e) {}
+    location.replace(location.pathname + '?nocache=' + Date.now());
+  });
+
+  renderHistory();
+  // 先探测本地服务器（server.py）是否可用，可用则优先走它（公司网络推荐）
+  probeLocalServer().then(() => {
+    verEl.innerHTML = APP_VER + ' · <span class="ok">静态托管模式 · 浏览器直连腾讯/雪球/东财行情（无需后端）</span>';
+    status('静态托管模式：浏览器直连行情，全周期可用。若某网络拦截数据域名，换手机流量/家里网络即可。');
+    load();
+  });
+})();
+</script>
+</body>
+</html>
