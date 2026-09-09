@@ -295,7 +295,7 @@
   // 与 localKline 同构，但目标是托管在云端的 server.py（不是 localhost）。
   // 浏览器直连雪球(无CORS)/东财(被拦)/新浪代理(被拦) 全部失败时，回退到这里即可稳定出图。
   // 注意：该 URL 为云端沙箱地址，若会话结束会失效；届时需要更新下面这个常量或本地起 server.py。
-  const BACKEND_BASE = "https://8000-267e928e17664760aabd7aacd66901c8.e2b.sh2.sandbox.cloudstudio.club";
+  const BACKEND_BASE = "https://5c83f7149a5c45709312179ea43fc934.app.workbuddy.link";
   async function backendKline(rawCode, klt) {
     const { pfx, code } = parseCode(rawCode);
     const per = EM2NAME[klt] || "day";
