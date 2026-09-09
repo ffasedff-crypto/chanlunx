@@ -23,7 +23,15 @@
   header, #status, .subbar, .history, .legend, .hint { flex: 0 0 auto; }
   header { padding: 14px 18px; border-bottom: 1px solid var(--border); background: var(--panel); }
   h1 { font-size: 17px; margin: 0 0 10px; font-weight: 700; }
-  .bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; position: relative; }
+  .suggest { position: absolute; top: 100%; left: 0; margin-top: 4px; z-index: 50;
+             background: #fff; border: 1px solid var(--border); border-radius: 8px;
+             box-shadow: 0 6px 18px rgba(0,0,0,.12); max-height: 280px; overflow-y: auto;
+             min-width: 220px; display: none; }
+  .sg-item { padding: 7px 12px; cursor: pointer; font-size: 14px; display: flex; gap: 8px; align-items: baseline; }
+  .sg-item:hover, .sg-item.active { background: var(--panel); }
+  .sg-item b { font-weight: 600; }
+  .sg-item span { color: var(--muted); font-size: 12px; }
   input#code { width: 200px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
   select#period { padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
   button { padding: 8px 16px; border: none; border-radius: 8px; background: #2f6fed; color: #fff; font-size: 14px; cursor: pointer; }
@@ -78,7 +86,8 @@
 <header>
   <h1>ChanlunX 缠论主图 · 实时个股</h1>
   <div class="bar">
-    <input id="code" placeholder="股票代码，如 600000 / 000001 / sh600000" value="603799" />
+    <input id="code" placeholder="代码 / 拼音首字母 / 中文名，如 600000 / zgyh / 中国银行" value="603799" autocomplete="off" />
+    <div id="suggest" class="suggest"></div>
     <select id="period">
       <option value="101" selected>日线</option>
       <option value="102">周线</option>
@@ -310,6 +319,63 @@
              low: d.low || [], close: d.close || [], vol: d.vol || [] };
   }
 
+  // —— 股票搜索：首字母/中文名/代码 → 代码（本地 stocks.json 索引，完全离线，公司网络 100% 可用）——
+  let STOCK_INDEX = null;
+  const suggestEl = document.getElementById('suggest');
+  const codeInput = document.getElementById('code');
+  async function ensureStockIndex() {
+    if (STOCK_INDEX) return STOCK_INDEX;
+    try {
+      const r = await fetchWithTimeout('stocks.json', 20000, {});
+      STOCK_INDEX = r.ok ? await r.json() : [];
+    } catch (e) { STOCK_INDEX = []; }
+    return STOCK_INDEX;
+  }
+  // 本地匹配：返回排序后的前若干命中（score 越高越优先）
+  function searchStocks(raw) {
+    const q = raw.trim().toLowerCase();
+    const idx = STOCK_INDEX || [];
+    const hits = [];
+    for (const s of idx) {
+      let score = 0;
+      if (s.i === q || s.i.startsWith(q)) score = 100;          // 拼音首字母精确/前缀（如 zgyh）
+      else if (raw.trim() && s.n.includes(raw.trim())) score = 80; // 中文名包含（如 银行）
+      else if (q && s.p.includes(q)) score = 60;               // 全拼包含（如 zhongguoyinhang）
+      else if (q && s.c.replace(/[^0-9]/g, '').includes(q.replace(/[^0-9]/g, ''))) score = 40; // 代码包含
+      if (score) hits.push({ s, score });
+    }
+    hits.sort((a, b) => b.score - a.score || (a.s.c < b.s.c ? -1 : 1));
+    return hits.slice(0, 12);
+  }
+  function renderSuggest(hits) {
+    if (!hits.length) { suggestEl.style.display = 'none'; return; }
+    suggestEl.innerHTML = hits.map(h =>
+      '<div class="sg-item" data-code="' + h.s.c + '"><b>' + h.s.n + '</b><span>' + h.s.c + '</span></div>'
+    ).join('');
+    suggestEl.style.display = 'block';
+  }
+  async function resolveSymbol(raw) {
+    const idx = await ensureStockIndex();
+    if (!idx || !idx.length) throw new Error('本地股票库未加载（stocks.json 缺失）');
+    const hits = searchStocks(raw);
+    if (!hits.length) throw new Error('未找到匹配的股票，可换代码或中文名称');
+    return { code: hits[0].s.c, name: hits[0].s.n }; // { code: sh600000, name }
+  }
+  // 实时候选：输入非代码时下拉可选，解决首字母撞车（如 zgyh → 中国银河/中国银行）
+  codeInput.addEventListener('input', async () => {
+    const raw = codeInput.value.trim();
+    if (!raw || parseCode(raw).code) { suggestEl.style.display = 'none'; return; }
+    await ensureStockIndex();
+    renderSuggest(searchStocks(raw));
+  });
+  suggestEl.addEventListener('mousedown', (e) => {   // mousedown 先于 blur，避免点不到
+    const it = e.target.closest('.sg-item'); if (!it) return;
+    codeInput.value = it.dataset.code;
+    suggestEl.style.display = 'none';
+    load();
+  });
+  codeInput.addEventListener('blur', () => setTimeout(() => { suggestEl.style.display = 'none'; }, 150));
+
   // 本地服务器是否可用：页面加载时实际 ping 一下 /api/ping，通了才用。
   // （不能用 hostname 判断——预览面板的 127.0.0.1 也会被误判）
   // 静态托管模式（GitHub Pages / 任意静态空间）：无本地服务器，永不探测，直接浏览器直连行情
@@ -482,10 +548,24 @@
 
   async function load(retryCount) {
     if (typeof retryCount !== 'number') retryCount = 0;
-    const raw = document.getElementById('code').value;
+    if (typeof suggestEl !== 'undefined') suggestEl.style.display = 'none';
+    let raw = document.getElementById('code').value.trim();
     const klt = document.getElementById('period').value;
     if (!raw) { status('请输入股票代码'); return; }
-    if (!parseCode(raw).code) { status('代码格式不正确'); return; }
+    // 代码格式（sh/sz/bj + 数字，或纯数字）：直接走；否则当作「首字母 / 中文名」去云端后端解析
+    if (!parseCode(raw).code) {
+      status('正在按「' + raw + '」搜索股票…');
+      try {
+        const hit = await resolveSymbol(raw);
+        raw = hit.code;                                 // 解析成功 → 用代码继续
+        document.getElementById('code').value = raw;     // 输入框回显代码
+        status('匹配：' + hit.name + ' (' + raw + ') · 加载中…');
+      } catch (e) {
+        status('未找到股票：' + raw + ' —— ' + e.message);
+        setLoading(false); showRetry();
+        return;
+      }
+    }
     status('加载中…' + (retryCount > 0 ? '（重试 ' + retryCount + '）' : ''));
     setLoading(true); hideRetry();
     try {
