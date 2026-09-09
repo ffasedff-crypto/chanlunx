@@ -281,6 +281,35 @@
     return { name: d.name, code: d.code, price: d.price, open: d.open,
              high: d.high, low: d.low, pct: d.pct };
   }
+
+  // —— WorkBuddy 云端后端 server.py（CORS*，跨域可达，公司网络下分钟线保底）——
+  // 与 localKline 同构，但目标是托管在云端的 server.py（不是 localhost）。
+  // 浏览器直连雪球(无CORS)/东财(被拦)/新浪代理(被拦) 全部失败时，回退到这里即可稳定出图。
+  // 注意：该 URL 为云端沙箱地址，若会话结束会失效；届时需要更新下面这个常量或本地起 server.py。
+  const BACKEND_BASE = "https://8000-267e928e17664760aabd7aacd66901c8.e2b.sh2.sandbox.cloudstudio.club";
+  async function backendKline(rawCode, klt) {
+    const { pfx, code } = parseCode(rawCode);
+    const per = EM2NAME[klt] || "day";
+    const url = BACKEND_BASE + "/api/kline?code=" + encodeURIComponent(pfx + code) + "&period=" + encodeURIComponent(per);
+    // 云端多副本，部分冷启动需数秒；并发打 3 次、用 Promise.any 取「最先成功」的那个，体感秒出。
+    const one = () => fetchWithTimeout(url, 15000, { mode: 'cors' }).then(async r => {
+      if (!r.ok) throw new Error("云端后端K线 " + r.status);
+      const d = await r.json();
+      if (!d || d.error) throw new Error(d.error || "云端后端返回空");
+      return d;
+    });
+    let d;
+    try {
+      d = await Promise.any([one(), one(), one()]);
+    } catch (e) {
+      const first = (e && e.errors && e.errors[0]) || e;
+      throw new Error((first && first.message) ? first.message : "云端后端K线全部失败");
+    }
+    return { name: d.name || code, code: d.code || code,
+             dates: d.dates || [], open: d.open || [], high: d.high || [],
+             low: d.low || [], close: d.close || [], vol: d.vol || [] };
+  }
+
   // 本地服务器是否可用：页面加载时实际 ping 一下 /api/ping，通了才用。
   // （不能用 hostname 判断——预览面板的 127.0.0.1 也会被误判）
   // 静态托管模式（GitHub Pages / 任意静态空间）：无本地服务器，永不探测，直接浏览器直连行情
@@ -393,7 +422,7 @@
     return k;
   }
 
-  // —— 数据获取：原生桥接 → 本地服务器(server.py) → 腾讯(日/周/月) → 雪球(分钟线) → 东方财富(全周期) → 新浪代理(兜底) ——
+  // —— 数据获取：原生桥接 → 本地服务器(server.py) → 腾讯(日/周/月) → 雪球(分钟线) → 东方财富(全周期) → 云端后端兜底 → 新浪代理(最后兜底) ——
   async function apiKline(rawCode, klt) {
     const period = EM2NAME[klt] || 'day';
     const isMin = !['101', '102', '103'].includes(klt);
@@ -413,7 +442,7 @@
       try { return await txKline(rawCode, klt); }
       catch (e) { /* 继续 */ }
     }
-    // 分钟线：雪球直连（免登录、公司网络可达、CORS 放行）← 分钟线主力
+    // 分钟线：雪球直连（免登录、CORS 放行）← 分钟线主力（非公司网络优先）
     if (isMin) {
       try { return await xqKlineBrowser(rawCode, klt); }
       catch (e) { /* 继续 */ }
@@ -421,9 +450,13 @@
     // 全周期兜底：东方财富直连
     try { return await emKlineBrowser(rawCode, klt); }
     catch (e) { /* 继续 */ }
-    // 最后手段：新浪经公共代理
+    // 终极兜底：WorkBuddy 云端后端 server.py（CORS*、公司网络可达、腾讯/东财代理）——
+    // 公司网络下雪球/东财/新浪代理多半被拦，此路是分钟线稳定出图的关键保底。
+    try { return await backendKline(rawCode, klt); }
+    catch (e) { /* 继续 */ }
+    // 最后手段：新浪经公共代理（其他网络可能更快，公司网络通常缓慢/被拦，故放最后）
     try { return await sinaKlineProxy(rawCode, klt); }
-    catch (e) { throw new Error("无法获取K线数据（腾讯/雪球/东方财富/代理均失败）。日/周/月检查网络；分钟线若失败多为当前网络拦截了数据域名，换手机流量或家里网络再试"); }
+    catch (e) { throw new Error("无法获取K线数据（腾讯/雪球/东方财富/云端后端/代理均失败）。日/周/月查网络；分钟线若全失败，多为当前出口拦截了行情域名——换手机流量或家庭网络再试，或确认云端后端 https://8000-267e928e17664760aabd7aacd66901c8.e2b.sh2.sandbox.cloudstudio.club 在线"); }
   }async function apiQuote(rawCode) {
     const { pfx, code } = parseCode(rawCode);
     if (hasBridge()) {
@@ -489,7 +522,7 @@
       const hint = useLocal
         ? '服务器代理已连上但多次重试仍取不到：上游行情接口偶发慢/限流，可稍后再试，或检查服务端日志。'
         : (isMin
-            ? '分钟线需要服务器代理：在 ChanlunX 目录运行 python server.py，然后打开 http://localhost:8000/app.html（公司网络下浏览器直连通常会被拦截）。'
+            ? '分钟线已自动回退到 WorkBuddy 云端后端兜底，若仍失败说明云端后端离线或当前出口拦截了它——可本地运行 python server.py 后打开 http://localhost:8000（需 workbuddy 链接在线）。'
             : '网络/接口可能被拦截；日/周/月线走腾讯直连，若失败建议同样改用服务器代理 server.py。');
       status('错误：' + e.message + ' —— ' + hint);
       setLoading(false); showRetry();
