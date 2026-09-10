@@ -291,32 +291,39 @@
              high: d.high, low: d.low, pct: d.pct };
   }
 
-  // —— WorkBuddy 云端后端 server.py（CORS*，跨域可达，公司网络下分钟线保底）——
-  // 与 localKline 同构，但目标是托管在云端的 server.py（不是 localhost）。
-  // 浏览器直连雪球(无CORS)/东财(被拦)/新浪代理(被拦) 全部失败时，回退到这里即可稳定出图。
-  // 注意：该 URL 为云端沙箱地址，若会话结束会失效；届时需要更新下面这个常量或本地起 server.py。
-  const BACKEND_BASE = "https://5c83f7149a5c45709312179ea43fc934.app.workbuddy.link";
+  // —— 云端后端兜底（CORS*，公司网络直连被拦时的最后手段）——
+  // 按数组顺序依次尝试，只要有一个在线即可出图。这样某个沙箱过期不会导致 60 分钟整体失效。
+  // ① 永久后端（推荐）：用 Cloudflare Workers 部署本目录 worker.js（见 worker.js 顶部说明），
+  //   得到 https://xxx.workers.dev 后填入下面 BACKEND_WORKER，这是不会回收的永久地址。
+  // ② 临时兜底：WorkBuddy 云端沙箱（会过期；过期后由①或重新部署 server.py 接管）。
+  const BACKEND_WORKER = "";   // ← 部署 worker.js 后填你的 https://xxx.workers.dev
+  const BACKENDS = [
+    BACKEND_WORKER,
+    "https://5c83f7149a5c45709312179ea43fc934.app.workbuddy.link"
+  ].filter(Boolean);
+  const BACKEND_BASE_LABEL = "BACKENDS 列表中的云端后端";
   async function backendKline(rawCode, klt) {
     const { pfx, code } = parseCode(rawCode);
     const per = EM2NAME[klt] || "day";
-    const url = BACKEND_BASE + "/api/kline?code=" + encodeURIComponent(pfx + code) + "&period=" + encodeURIComponent(per);
-    // 云端多副本，部分冷启动需数秒；并发打 3 次、用 Promise.any 取「最先成功」的那个，体感秒出。
-    const one = () => fetchWithTimeout(url, 15000, { mode: 'cors' }).then(async r => {
-      if (!r.ok) throw new Error("云端后端K线 " + r.status);
-      const d = await r.json();
-      if (!d || d.error) throw new Error(d.error || "云端后端返回空");
-      return d;
-    });
-    let d;
-    try {
-      d = await Promise.any([one(), one(), one()]);
-    } catch (e) {
-      const first = (e && e.errors && e.errors[0]) || e;
-      throw new Error((first && first.message) ? first.message : "云端后端K线全部失败");
+    let lastErr;
+    for (const base of BACKENDS) {
+      if (!base) continue;
+      const url = base + "/api/kline?code=" + encodeURIComponent(pfx + code) + "&period=" + encodeURIComponent(per);
+      // 云端多副本，部分冷启动需数秒；并发打 3 次、用 Promise.any 取「最先成功」的那个，体感秒出。
+      try {
+        const one = () => fetchWithTimeout(url, 15000, { mode: 'cors' }).then(async r => {
+          if (!r.ok) throw new Error("后端K线 " + r.status);
+          const d = await r.json();
+          if (!d || d.error) throw new Error(d.error || "后端返回空");
+          return d;
+        });
+        const d = await Promise.any([one(), one(), one()]);
+        return { name: d.name || code, code: d.code || code,
+                 dates: d.dates || [], open: d.open || [], high: d.high || [],
+                 low: d.low || [], close: d.close || [], vol: d.vol || [] };
+      } catch (e) { lastErr = e; }
     }
-    return { name: d.name || code, code: d.code || code,
-             dates: d.dates || [], open: d.open || [], high: d.high || [],
-             low: d.low || [], close: d.close || [], vol: d.vol || [] };
+    throw new Error(lastErr ? lastErr.message : "所有云端后端均不可用（链接可能过期）");
   }
 
   // —— 股票搜索：首字母/中文名/代码 → 代码（本地 stocks.json 索引，完全离线，公司网络 100% 可用）——
@@ -468,10 +475,14 @@
   // 在雪球不可用时的分钟线备选，以及日/周/月的额外兜底。
   async function emKlineBrowser(rawCode, klt) {
     const { secid } = parseCode(rawCode);
+    // 东财 klt 编码与本站内部不同：101日/102周/103月/104=5分/105=15分/106=30分/107=60分
+    // （本站内部分钟用 106/107/108/109，必须换算，否则东财收错编码返回空 → 60分钟只能靠后端）
+    const EM2KLT = { '101':'101','102':'102','103':'103','106':'104','107':'105','108':'106','109':'107' };
+    const kltEm = EM2KLT[klt] || '101';
     const url = 'https://push2his.eastmoney.com/api/qt/stock/kline/get'
       + '?fields1=f1,f2,f3,f4,f5,f6'
       + '&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61'
-      + '&klt=' + klt + '&fqt=0&secid=' + secid + '&beg=0&end=20500101&lmt=400';
+      + '&klt=' + kltEm + '&fqt=0&secid=' + secid + '&beg=0&end=20500101&lmt=400';
     const r = await fetchWithTimeout(url, 12000, { mode: 'cors' });
     if (!r.ok) throw new Error('东方财富K线 ' + r.status);
     const d = await r.json();
@@ -488,7 +499,7 @@
     return k;
   }
 
-  // —— 数据获取：原生桥接 → 本地服务器(server.py) → 腾讯(日/周/月) → 雪球(分钟线) → 东方财富(全周期) → 云端后端兜底 → 新浪代理(最后兜底) ——
+  // —— 数据获取链（公司网之外 60 分钟已免后端）：原生桥接 → 本地服务器 → 腾讯(日/周/月) → 东方财富(全周期含分钟线/指数) → 雪球(分钟线) → 新浪代理 → 云端后端列表兜底 ——
   // 指数代码判定：① stocks.json 中标记 x:1 的权威列表；② 代码特征兜底（sh000xxx=上证类指数、sz399xxx=深证类、bj899xxx=北证类，均与个股不冲突）
   function isIndexCode(raw) {
     const c = (raw || '').trim().toLowerCase();
@@ -501,17 +512,11 @@
     const period = EM2NAME[klt] || 'day';
     const isMin = !['101', '102', '103'].includes(klt);
     const pc = parseCode(rawCode);
-    // 指数：腾讯/雪球日线分钟线均不支持、东财浏览器端偶发不稳，优先走云端后端（已验证全周期含 60 分钟稳定返回 400 根）；失败再回落通用链（东财兜底）
-    if (isIndexCode(rawCode)) {
-      try { return await backendKline(rawCode, klt); }
-      catch (e) { /* 回落通用链 */ }
-    }
     if (hasBridge()) {
       const d = await bridgeCall('getKline', pc.pfx + pc.code, period);
       if (d && d.dates && d.dates.length) return d;
       throw new Error('本地桥接无K线数据');
     }
-        // 本地服务器（server.py）：Python 服务端拉数据，绕开浏览器 CORS ← 公司网络推荐
     if (useLocal) {
       try { return await localKline(rawCode, klt); }
       catch (e) { /* 继续 */ }
@@ -521,21 +526,20 @@
       try { return await txKline(rawCode, klt); }
       catch (e) { /* 继续 */ }
     }
-    // 分钟线：雪球直连（免登录、CORS 放行）← 分钟线主力（非公司网络优先）
+    // 东方财富直连：全周期含分钟线、CORS 放行、且支持指数（secid 1.000001 等）——优先直连，公司网之外免后端
+    try { return await emKlineBrowser(rawCode, klt); }
+    catch (e) { /* 继续 */ }
+    // 分钟线：雪球直连（免登录、CORS 放行）
     if (isMin) {
       try { return await xqKlineBrowser(rawCode, klt); }
       catch (e) { /* 继续 */ }
     }
-    // 全周期兜底：东方财富直连
-    try { return await emKlineBrowser(rawCode, klt); }
-    catch (e) { /* 继续 */ }
-    // 终极兜底：WorkBuddy 云端后端 server.py（CORS*、公司网络可达、腾讯/东财代理）——
-    // 公司网络下雪球/东财/新浪代理多半被拦，此路是分钟线稳定出图的关键保底。
-    try { return await backendKline(rawCode, klt); }
-    catch (e) { /* 继续 */ }
-    // 最后手段：新浪经公共代理（其他网络可能更快，公司网络通常缓慢/被拦，故放最后）
+    // 新浪经公共代理（其他网络兜底）
     try { return await sinaKlineProxy(rawCode, klt); }
-    catch (e) { throw new Error("无法获取K线数据（腾讯/雪球/东方财富/云端后端/代理均失败）。日/周/月查网络；分钟线若全失败，多为当前出口拦截了行情域名——换手机流量或家庭网络再试，或确认云端后端 " + BACKEND_BASE + " 在线"); }
+    catch (e) { /* 继续 */ }
+    // 云端后端列表兜底（公司网络直连被拦时；永久后端填 BACKENDS[0]，详见说明）
+    try { return await backendKline(rawCode, klt); }
+    catch (e) { throw new Error("无法获取K线（腾讯/东财/雪球/新浪代理/云端后端均失败）。公司网络下直连行情域名被拦，请部署永久云端后端 worker.js（地址填 BACKENDS[0]）后重推；或确认 " + BACKEND_BASE_LABEL + " 在线"); }
   }async function apiQuote(rawCode) {
     const { pfx, code } = parseCode(rawCode);
     if (hasBridge()) {
