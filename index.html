@@ -1,14 +1,14 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="default" />
-<meta name="apple-mobile-web-app-title" content="缠论" />
-<link rel="manifest" href="manifest.json" />
-<link rel="apple-touch-icon" href="icon.svg" />
+<html lang="zh-CN" data-page-node-id="gMo4rpUc3qctcr2u2MeJaT">
+<head data-page-node-id="mX1hF6rI5FBqET9LrctmtB">
+<meta charset="UTF-8" data-page-node-id="EICqrjCnuEgAIFGHDhMtnr" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" data-page-node-id="Wsu3Jgh7aO8yczuwezFFZP" />
+<meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="Ov1Y8HtvHCUTc7ZFmROSkY" />
+<meta name="mobile-web-app-capable" content="yes" data-page-node-id="aHEQQr1cmkdIuXfSimNd86" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" data-page-node-id="H1PmffEGb5gvdFLrUhooz5" />
+<meta name="apple-mobile-web-app-title" content="缠论" data-page-node-id="HyBWvxfBAdUVhNWzejBLsT" />
+<link rel="manifest" href="manifest.json" data-page-node-id="nRdVANrWnvbgdFi8EXrUL5" />
+<link rel="apple-touch-icon" href="icon.svg" data-page-node-id="yLcMujaZaWKu1lZdIoZeNA" />
 <title>ChanlunX 缠论主图 · 实时个股</title>
 <style>
   :root {
@@ -82,67 +82,67 @@
   .hint code { background: #eef1f5; padding: 1px 5px; border-radius: 4px; }
 </style>
 </head>
-<body>
-<header>
-  <h1>ChanlunX 缠论主图 · 实时个股</h1>
-  <div class="bar">
-    <input id="code" placeholder="代码 / 拼音首字母 / 中文名，如 600000 / zgyh / 中国银行" value="603799" autocomplete="off" />
-    <div id="suggest" class="suggest"></div>
-    <select id="period">
-      <option value="101" selected>日线</option>
-      <option value="102">周线</option>
-      <option value="103">月线</option>
-      <option value="109">60分钟</option>
-      <option value="108">30分钟</option>
-      <option value="107">15分钟</option>
-      <option value="106">5分钟</option>
+<body data-page-node-id="vF2yvXfqKmVDlRruUDqLT0">
+<header data-page-node-id="45UQnF3wp6g01RHesjF8la">
+  <h1 data-page-node-id="qHyNH8wWusLkqUEVM4icpE">ChanlunX 缠论主图 · 实时个股</h1>
+  <div class="bar" data-page-node-id="RZEB9vexWCXCAKvZdfwP0h">
+    <input id="code" placeholder="代码 / 拼音首字母 / 中文名，如 600000 / zgyh / 中国银行" value="603799" autocomplete="off" data-page-node-id="LpTQkK4Pl3YsSWFP4BZkuT" />
+    <div id="suggest" class="suggest" data-page-node-id="dhpnE0A1fhQJJXv02x8ph5"></div>
+    <select id="period" data-page-node-id="bhYCYXcuzuFeZEB3QkL4JC">
+      <option value="101" selected data-page-node-id="pAz4AHRFzdntytf3LsOIO4">日线</option>
+      <option value="102" data-page-node-id="10dc42rtV6tEBA0sNrAWML">周线</option>
+      <option value="103" data-page-node-id="xJFBDOZJcnsWhFOqHI3rh6">月线</option>
+      <option value="109" data-page-node-id="p1a9QBzvNsVwIFeKjqziZw">60分钟</option>
+      <option value="108" data-page-node-id="kc3p51gPLfjyF32UPkEdGu">30分钟</option>
+      <option value="107" data-page-node-id="BLX8HGOGhlq5kTooDrnKKU">15分钟</option>
+      <option value="106" data-page-node-id="nfYEFOcBaDGa1oDix2wf6D">5分钟</option>
     </select>
-    <button id="go">查看</button>
-    <button id="reset" style="background:#6b7280">复位视图</button>
-    <button id="save" style="background:#0f9d58">存图</button>
-    <div class="quote" id="quote"></div>
+    <button id="go" data-page-node-id="riuR8aW5kcEGKKGDOCSgtS">查看</button>
+    <button id="reset" style="background:#6b7280" data-page-node-id="0EC5wvpA92oI126mRJ3u87">复位视图</button>
+    <button id="save" style="background:#0f9d58" data-page-node-id="Zu646DhV9SAnjRKJHosx6t">存图</button>
+    <div class="quote" id="quote" data-page-node-id="8KGnMiIef6Fs2qmRRuCgrT"></div>
   </div>
 </header>
-<div id="status">输入代码后点击"查看"。当前由服务器代理取数（服务端拉取，不受浏览器 CORS 与公司网络限制），日/周/月/60/30/15/5 分钟全周期可用。</div>
-<div class="subbar">
-  <button id="retry">↻ 重试加载</button>
-  <button id="clearcache" class="ghost" title="清掉 Service Worker 缓存并强制重新加载">🧹 清缓存重载</button>
-  <span id="ver" class="ver"></span>
+<div id="status" data-page-node-id="Jleh4cSmDT0B3IXD53g5E1">输入代码后点击"查看"。当前由服务器代理取数（服务端拉取，不受浏览器 CORS 与公司网络限制），日/周/月/60/30/15/5 分钟全周期可用。</div>
+<div class="subbar" data-page-node-id="04Zxuu2lb9n14prncVveVm">
+  <button id="retry" data-page-node-id="IQA8gukN7wKpQW6t59g4jb">↻ 重试加载</button>
+  <button id="clearcache" class="ghost" title="清掉 Service Worker 缓存并强制重新加载" data-page-node-id="eFYLAtX26fSbb8v2OW7K3p">🧹 清缓存重载</button>
+  <span id="ver" class="ver" data-page-node-id="kIk1VQX5XUHnM9NXGlqdp2"></span>
 </div>
-<div class="history" id="history"></div>
-<div class="legend">
-  <span><i style="background:var(--bi)"></i>笔 / 笔中枢</span>
-  <span><i style="background:var(--duan)"></i>段 / 段中枢</span>
-  <span><i style="background:var(--red)"></i>阳线(涨)</span>
-  <span><i style="background:var(--green)"></i>阴线(跌)</span>
-  <span style="color:var(--text)"><b>副图：</b><i style="background:#f5a0a8"></i>吸</span>
-  <span><i style="background:#e63946"></i>拉</span>
-  <span><i style="background:#9ad4a5"></i>派</span>
-  <span><i style="background:#2a9d3f"></i>落</span>
-  <span><i style="background:#e6a700"></i>▲买点 XG</span>
-  <span>（红=动能向上，绿=动能向下）</span>
-  <span><i style="background:#e63946"></i>前高收(红虚线)</span>
-  <span><i style="background:#2a9d3f"></i>波段前低(绿虚线)</span>
-  <span>主图叠加财富阶梯 · MA3/5/10/20/60/120 + 阶梯柱</span>
-  <span><i style="background:rgba(230,57,70,.5)"></i>↑跳空缺口(红带·未补)</span>
-  <span><i style="background:rgba(42,157,63,.5)"></i>↓跳空缺口(绿带·未补)</span>
+<div class="history" id="history" data-page-node-id="qdxAcV0q6ysVVqEWmwUu2b"></div>
+<div class="legend" data-page-node-id="6ena2ABkmlLKWdUj9MAkRQ">
+  <span data-page-node-id="QGkD4oW7Hb8GLok2K1DJ6q"><i style="background:var(--bi)" data-page-node-id="MmlqZN1k9AhPr3Zr1J26Et"></i>笔 / 笔中枢</span>
+  <span data-page-node-id="SSbBA6JUKmAlrAVGxvWyVE"><i style="background:var(--duan)" data-page-node-id="mZx8ppTVutU2K6AZbgoKJk"></i>段 / 段中枢</span>
+  <span data-page-node-id="2lVP2DpiomUbSptJGziJWw"><i style="background:var(--red)" data-page-node-id="UzWcl5gqxrgEHqWUDHyGq8"></i>阳线(涨)</span>
+  <span data-page-node-id="9lnXKCtOFPvaFynBzigFBt"><i style="background:var(--green)" data-page-node-id="ixjrVcI3WEl3o5CITUhswu"></i>阴线(跌)</span>
+  <span style="color:var(--text)" data-page-node-id="94kG6PqDJ8GJEZConAkmdK"><b data-page-node-id="JsGCBS1nM12MQ0IM0TEKZ3">副图：</b><i style="background:#f5a0a8" data-page-node-id="aCEKfxa3aEFSH1rjwZIZQJ"></i>吸</span>
+  <span data-page-node-id="qPZR3oW4DsoBAaMmIYXs2J"><i style="background:#e63946" data-page-node-id="1hsNX5TmTNreLwPXNayxw2"></i>拉</span>
+  <span data-page-node-id="Gnpur7vjuY0MugwftxEiKH"><i style="background:#9ad4a5" data-page-node-id="vsMwhzMJLC18ykP2xczRGd"></i>派</span>
+  <span data-page-node-id="KFfOgMqSFg01ILVes46K7S"><i style="background:#2a9d3f" data-page-node-id="2pQK2i843JNIqhOh4YBAhD"></i>落</span>
+  <span data-page-node-id="YQ17Ijg6Ccd66OFBp7V70G"><i style="background:#e6a700" data-page-node-id="n4ylpaX8MKIuKflJEnT4VF"></i>▲买点 XG</span>
+  <span data-page-node-id="zOpgFRpyJwTogq1SVY6q7F">（红=动能向上，绿=动能向下）</span>
+  <span data-page-node-id="G827GXH7M3XOnZ0gBKQSPq"><i style="background:#e63946" data-page-node-id="TBXDvThsDPPbooVo56vruN"></i>前高收(红虚线)</span>
+  <span data-page-node-id="tDoTiM1J8I1kidbpJQA74Z"><i style="background:#2a9d3f" data-page-node-id="BOfTfceGFQz2Y9WdD9s4KA"></i>波段前低(绿虚线)</span>
+  <span data-page-node-id="bBRrkBjIrTuylGUH1Zyg0A">主图叠加财富阶梯 · MA3/5/10/20/60/120 + 阶梯柱</span>
+  <span data-page-node-id="1DhKQxx5MX6Sst5SscC7ex"><i style="background:rgba(230,57,70,.5)" data-page-node-id="NlKDBikYl96DDmBwPgm5UD"></i>↑跳空缺口(红带·未补)</span>
+  <span data-page-node-id="8EXNpn8PY2JTQvuXCPvw2m"><i style="background:rgba(42,157,63,.5)" data-page-node-id="esOgh6VS6jBBndBpoNFyeL"></i>↓跳空缺口(绿带·未补)</span>
 </div>
-<div class="chart-wrap">
-  <div class="main-chart"><canvas id="cv"></canvas></div>
-  <canvas id="cvx"></canvas>
-  <div id="tooltip"></div>
-  <div id="loading" class="loading"><span class="spin"></span>加载中…</div>
+<div class="chart-wrap" data-page-node-id="1nCZMR6VHeQ0xys5ifiXJ7">
+  <div class="main-chart" data-page-node-id="28oBHjXexpRshdBcU9kxAs"><canvas id="cv" data-page-node-id="NVmmFJAWZ9xCDAs6FSnBEN"></canvas></div>
+  <canvas id="cvx" data-page-node-id="RRBv2uF6RxlPHoC9FNRpWa"></canvas>
+  <div id="tooltip" data-page-node-id="YT3BMhSuY9gO2jozbBdc31"></div>
+  <div id="loading" class="loading" data-page-node-id="gLY0ywQzlFLWGRNgoTvRFT"><span class="spin" data-page-node-id="aIsD8y1cuyMf3TmuSRgkAd"></span>加载中…</div>
 </div>
-<details class="hint">
-  <summary>使用说明 / 指标口径（点击展开）</summary>
-  <div class="hint-body">
+<details class="hint" data-page-node-id="NQYMQAgyIftON9UbJLbkVf">
+  <summary data-page-node-id="gHGfd7JHwvdoU1Gk8r0wIT">使用说明 / 指标口径（点击展开）</summary>
+  <div class="hint-body" data-page-node-id="FkGLbZcbFQ3dAuvtFdNCl5">
   缠论算法由 ChanlunX（通达信 DLL 插件）C++ 源码逐函数移植，笔/段/中枢与插件一致。
-  市场自动识别：<code>6/9/5</code> 开头=沪市，<code>0/3/2/1/8</code> 开头=深市/北交所；也可显式写 <code>sh</code>/<code>sz</code>/<code>bj</code> 前缀。
+  市场自动识别：<code data-page-node-id="sazJ9ctvZuAZpUcE5gpGeQ">6/9/5</code> 开头=沪市，<code data-page-node-id="qNv54WTqBfRwY6V5LPGYFU">0/3/2/1/8</code> 开头=深市/北交所；也可显式写 <code data-page-node-id="yGz0FZMzUswcX8EwzMD60v">sh</code>/<code data-page-node-id="0JGqKG9daxj6pc9F3MXeYS">sz</code>/<code data-page-node-id="SANjm6sEcrKCv1Sc9XZ1Qx">bj</code> 前缀。
   数据源（自动按序回退）：本地服务器 server.py（推荐，全周期）→ 腾讯（日/周/月）→ 雪球（分钟线）→ 东方财富（全周期）→ 新浪经公共代理（兜底）。指数（上证指数/创业板指/沪深300 等）统一走云端后端兜底，确保全周期含 60 分钟稳定出图。
-  服务端拉数据可绕开浏览器 CORS 与公司网络限制；本地用也是同一套：<code>python server.py</code> 后访问 <code>http://localhost:8000/app.html</code>。
+  服务端拉数据可绕开浏览器 CORS 与公司网络限制；本地用也是同一套：<code data-page-node-id="RSZ3TM3l9Gn1TPwVZ61ctp">python server.py</code> 后访问 <code data-page-node-id="KKvPIGog0KiRjbXpjHNMKg">http://localhost:8000/app.html</code>。
   实时价每 8 秒刷新一次。
-  <b>主图交互：</b>鼠标滚轮/上推放大、下推缩小（<b>缩放始终以最新K线为锚点，最新一根贴右边缘不动</b>），左右拖拽平移，双击复位；手机上<b>单指上下推=缩放、左右推=平移</b>；也可点「复位视图」按钮。
-  主图下方副图叠加<b>吸拉派落(XLPL)</b>指标，按 EME13 的<b>动能方向</b>与<b>0 轴位置</b>分四阶段：<span style="color:#e63946"><b>吸</b>=0轴下+动能向上（浅红，底部吸筹）</span>、<span style="color:#e63946"><b>拉</b>=0轴上+动能向上（正红，拉升）</span>、<span style="color:#2a9d3f"><b>派</b>=0轴上+动能向下（浅绿，高位派发）</span>、<span style="color:#2a9d3f"><b>落</b>=0轴下+动能向下（正绿，回落）</span>；柱高即 EME13 强弱，<b>金色▲为买点 XG</b>（吸昨∧拉今∧洗盘结束∧放量∧突破昨高）。右上角色块显示当前所处阶段。
+  <b data-page-node-id="CAutaqez1vfsEPSDP0H6lE">主图交互：</b>鼠标滚轮/上推放大、下推缩小（<b data-page-node-id="mRAkDLJbSB3Ty7M7YwGR0o">缩放始终以最新K线为锚点，最新一根贴右边缘不动</b>），左右拖拽平移，双击复位；手机上<b data-page-node-id="DQdsd0XEX4259TtyRFoabm">单指上下推=缩放、左右推=平移</b>；也可点「复位视图」按钮。
+  主图下方副图叠加<b data-page-node-id="MapHG5kwytEfMUXUuKKGja">吸拉派落(XLPL)</b>指标，按 EME13 的<b data-page-node-id="UIaxlfgAazzHGvk0cYckol">动能方向</b>与<b data-page-node-id="Ztv8B7ZzSqmjZq6F0CM9CH">0 轴位置</b>分四阶段：<span style="color:#e63946" data-page-node-id="HdAA2c7dawDQIf01s5i8wM"><b data-page-node-id="HoTIR4aEEXQkvTU2rY6gG7">吸</b>=0轴下+动能向上（浅红，底部吸筹）</span>、<span style="color:#e63946" data-page-node-id="daB4TTk1LKDhN3u0mW2sLR"><b data-page-node-id="8Lyi91oj6nKjHuBqLMDyUv">拉</b>=0轴上+动能向上（正红，拉升）</span>、<span style="color:#2a9d3f" data-page-node-id="AF90C27SOl0rufd7WFyxHG"><b data-page-node-id="nWNbfeAgI95nQvnCRxVBdE">派</b>=0轴上+动能向下（浅绿，高位派发）</span>、<span style="color:#2a9d3f" data-page-node-id="HtCSVXsrDeqp3l0aAJjqNX"><b data-page-node-id="IGAHF9XGe0XoIsmUx6BA2h">落</b>=0轴下+动能向下（正绿，回落）</span>；柱高即 EME13 强弱，<b data-page-node-id="cai1vj7RL9UHG3hoDAEdTK">金色▲为买点 XG</b>（吸昨∧拉今∧洗盘结束∧放量∧突破昨高）。右上角色块显示当前所处阶段。
   </div>
 </details>
 
