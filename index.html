@@ -296,7 +296,7 @@
   // ① 永久后端（推荐）：用 Cloudflare Workers 部署本目录 worker.js（见 worker.js 顶部说明），
   //   得到 https://xxx.workers.dev 后填入下面 BACKEND_WORKER，这是不会回收的永久地址。
   // ② 临时兜底：WorkBuddy 云端沙箱（会过期；过期后由①或重新部署 server.py 接管）。
-  const BACKEND_WORKER = "";   // ← 部署 worker.js 后填你的 https://xxx.workers.dev
+  const BACKEND_WORKER = "https://shiny-firefly-f192.ffasedff.workers.dev";   // ← 部署 worker.js 后填你的 https://xxx.workers.dev
   const BACKENDS = [
     BACKEND_WORKER,
     "https://5c83f7149a5c45709312179ea43fc934.app.workbuddy.link"
@@ -476,7 +476,7 @@
   async function emKlineBrowser(rawCode, klt) {
     const { secid } = parseCode(rawCode);
     // 东财 klt 编码与本站内部不同：101日/102周/103月/104=5分/105=15分/106=30分/107=60分
-    // （本站内部分钟用 106/107/108/109，必须换算，否则东财收错编码返回空 → 60分钟只能靠后端）
+    // （本站内部分钟用 106/107/108/109，必须换算，否则东财收错编码返回空；公司网络下 60 分钟改走 worker.js 直连新浪）
     const EM2KLT = { '101':'101','102':'102','103':'103','106':'104','107':'105','108':'106','109':'107' };
     const kltEm = EM2KLT[klt] || '101';
     const url = 'https://push2his.eastmoney.com/api/qt/stock/kline/get'
