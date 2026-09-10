@@ -162,7 +162,7 @@
   const tooltip = document.getElementById('tooltip');
   const statusEl = document.getElementById('status');
   const quoteEl = document.getElementById('quote');
-  const APP_VER = 'v12';  // 版本号：改了就说明页面是新的；v11=前端并发竞速提速；v12=缩放锚定最新K线(右边缘)
+  const APP_VER = 'v13';  // 版本号：改了就说明页面是新的；v12=缩放锚定最新K线(右边缘)；v13=Worker托管时后端优先(修60分钟)
   const verEl = document.getElementById('ver');
   const EM2NAME = { '101': 'day', '102': 'week', '103': 'month', '109': '60min', '108': '30min', '107': '15min', '106': '5min' };
   const DEFAULT_BARS = 120;   // 初始窗口显示的根数（右对齐，最新在前）
@@ -508,6 +508,10 @@
     }
     return /^(sh000\d{3}|sz399\d{3}|bj899\d{3})$/.test(c);
   }
+  // 页面是否由 Worker 自己托管（*.workers.dev）——此时同源后端就是最稳的源，且不受公司网络拦截
+  function servedByWorker() {
+    try { return /\.workers\.dev$/i.test(location.hostname); } catch (e) { return false; }
+  }
   async function apiKline(rawCode, klt) {
     const period = EM2NAME[klt] || 'day';
     const isMin = !['101', '102', '103'].includes(klt);
@@ -520,6 +524,12 @@
     if (useLocal) {
       try { return await localKline(rawCode, klt); }
       catch (e) { /* 继续 */ }
+    }
+    // ★ Worker 托管场景：后端就是同源 Worker，服务端直连新浪，公司网下最可靠 —— 优先直取，
+    //   避免先跑一串必然被公司网拦死的直连源（东财/雪球/代理）浪费时间。
+    if (servedByWorker()) {
+      try { return await backendKline(rawCode, klt); }
+      catch (e) { /* 继续走下面的常规链兜底 */ }
     }
     // 日/周/月：腾讯直连（最稳，CORS 放行）
     if (!isMin) {
