@@ -489,10 +489,23 @@
   }
 
   // —— 数据获取：原生桥接 → 本地服务器(server.py) → 腾讯(日/周/月) → 雪球(分钟线) → 东方财富(全周期) → 云端后端兜底 → 新浪代理(最后兜底) ——
+  // 指数代码判定：① stocks.json 中标记 x:1 的权威列表；② 代码特征兜底（sh000xxx=上证类指数、sz399xxx=深证类、bj899xxx=北证类，均与个股不冲突）
+  function isIndexCode(raw) {
+    const c = (raw || '').trim().toLowerCase();
+    if (STOCK_INDEX) {
+      for (const s of STOCK_INDEX) if (s.c === c && s.x === 1) return true;
+    }
+    return /^(sh000\d{3}|sz399\d{3}|bj899\d{3})$/.test(c);
+  }
   async function apiKline(rawCode, klt) {
     const period = EM2NAME[klt] || 'day';
     const isMin = !['101', '102', '103'].includes(klt);
     const pc = parseCode(rawCode);
+    // 指数：腾讯/雪球日线分钟线均不支持、东财浏览器端偶发不稳，优先走云端后端（已验证全周期含 60 分钟稳定返回 400 根）；失败再回落通用链（东财兜底）
+    if (isIndexCode(rawCode)) {
+      try { return await backendKline(rawCode, klt); }
+      catch (e) { /* 回落通用链 */ }
+    }
     if (hasBridge()) {
       const d = await bridgeCall('getKline', pc.pfx + pc.code, period);
       if (d && d.dates && d.dates.length) return d;
@@ -522,7 +535,7 @@
     catch (e) { /* 继续 */ }
     // 最后手段：新浪经公共代理（其他网络可能更快，公司网络通常缓慢/被拦，故放最后）
     try { return await sinaKlineProxy(rawCode, klt); }
-    catch (e) { throw new Error("无法获取K线数据（腾讯/雪球/东方财富/云端后端/代理均失败）。日/周/月查网络；分钟线若全失败，多为当前出口拦截了行情域名——换手机流量或家庭网络再试，或确认云端后端 https://8000-267e928e17664760aabd7aacd66901c8.e2b.sh2.sandbox.cloudstudio.club 在线"); }
+    catch (e) { throw new Error("无法获取K线数据（腾讯/雪球/东方财富/云端后端/代理均失败）。日/周/月查网络；分钟线若全失败，多为当前出口拦截了行情域名——换手机流量或家庭网络再试，或确认云端后端 " + BACKEND_BASE + " 在线"); }
   }async function apiQuote(rawCode) {
     const { pfx, code } = parseCode(rawCode);
     if (hasBridge()) {
