@@ -162,7 +162,7 @@
   const tooltip = document.getElementById('tooltip');
   const statusEl = document.getElementById('status');
   const quoteEl = document.getElementById('quote');
-  const APP_VER = 'v13';  // 版本号：改了就说明页面是新的；v12=缩放锚定最新K线(右边缘)；v13=Worker托管时后端优先(修60分钟)
+  const APP_VER = 'v14';  // 版本号：改了就说明页面是新的；v13=Worker托管时后端优先(修60分钟)；v14=同源单发+实时价并行(提速)
   const verEl = document.getElementById('ver');
   const EM2NAME = { '101': 'day', '102': 'week', '103': 'month', '109': '60min', '108': '30min', '107': '15min', '106': '5min' };
   const DEFAULT_BARS = 120;   // 初始窗口显示的根数（右对齐，最新在前）
@@ -309,15 +309,18 @@
     for (const base of BACKENDS) {
       if (!base) continue;
       const url = base + "/api/kline?code=" + encodeURIComponent(pfx + code) + "&period=" + encodeURIComponent(per);
-      // 云端多副本，部分冷启动需数秒；并发打 3 次、用 Promise.any 取「最先成功」的那个，体感秒出。
+      // 同源（页面由 Worker 自己托管）时：Worker 是单实例、无冷启动，直接单发一次最快，
+      // 避免 3 个重复同源请求被浏览器连接数限制排队反而变慢。
+      const sameOrigin = (() => { try { return new URL(base, location.href).origin === location.origin; } catch (e) { return false; } })();
+      const one = (ms) => fetchWithTimeout(url, ms, { mode: 'cors' }).then(async r => {
+        if (!r.ok) throw new Error("后端K线 " + r.status);
+        const d = await r.json();
+        if (!d || d.error) throw new Error(d.error || "后端返回空");
+        return d;
+      });
       try {
-        const one = () => fetchWithTimeout(url, 15000, { mode: 'cors' }).then(async r => {
-          if (!r.ok) throw new Error("后端K线 " + r.status);
-          const d = await r.json();
-          if (!d || d.error) throw new Error(d.error || "后端返回空");
-          return d;
-        });
-        const d = await Promise.any([one(), one(), one()]);
+        // 同源：单发、8s 超时（Worker 直连新浪通常 < 1s）；跨域沙箱：保留并发兜底、15s 超时
+        const d = sameOrigin ? await one(8000) : await Promise.any([one(15000), one(15000), one(15000)]);
         return { name: d.name || code, code: d.code || code,
                  dates: d.dates || [], open: d.open || [], high: d.high || [],
                  low: d.low || [], close: d.close || [], vol: d.vol || [] };
@@ -596,24 +599,32 @@
     status('加载中…' + (retryCount > 0 ? '（重试 ' + retryCount + '）' : ''));
     setLoading(true); hideRetry();
     try {
+      // K 线与实时价并行发起：实时价那条链（腾讯/东财/雪球）在公司网常被拦、会拖好几秒，
+      // 不能让它串行阻塞出图。先拿 K 线出图，实时价到了再补刷新。
+      const quoteP = apiQuote(raw).catch(() => null);
       const k = await apiKline(raw, klt);
       let quote = null;
-      try { quote = await apiQuote(raw); } catch (e) { quote = null; }
       const view = sliceLast(k, 320);
       const chan = window.Chanlun.computeChanlun(view.high, view.low);
       const xlpl = computeXLPL(view);
       const wl = computeWealthLadder(view);
       const gaps = computeGaps(view);
       const n0 = view.close.length;
-      current = { k: view, chan, xlpl, wl, gaps, klt, livePrice: quote ? quote.price : view.close[n0 - 1],
+      current = { k: view, chan, xlpl, wl, gaps, klt, livePrice: view.close[n0 - 1],
                   viewStart: Math.max(0, n0 - DEFAULT_BARS), viewCount: Math.min(DEFAULT_BARS, n0) };
-      renderQuote(quote, view);
+      renderQuote(null, view);
       draw();
-      const src = (quote && quote.price != null) ? '实时价 ' + quote.price : '（实时行情不可用，显示最新收盘）';
-      status('已加载 ' + (view.name || raw) + ' · ' + (EM2NAME[klt] || '日线') + ' · ' + src);
+      status('已加载 ' + (view.name || raw) + ' · ' + (EM2NAME[klt] || '日线') + ' · 加载实时价…');
       setLoading(false); hideRetry();
-      addHistory(raw, (quote && quote.name) || view.name || raw, klt);
+      addHistory(raw, view.name || raw, klt);
       setupRefresh(raw, klt);
+      // 实时价到达后异步补刷（不阻塞出图）
+      quoteP.then((q) => {
+        if (!q || q.price == null) { status('已加载 ' + (view.name || raw) + ' · ' + (EM2NAME[klt] || '日线') + ' · （实时行情不可用，显示最新收盘）'); return; }
+        current.livePrice = q.price;
+        renderQuote(q, view); draw();
+        status('已加载 ' + (q.name || view.name || raw) + ' · ' + (EM2NAME[klt] || '日线') + ' · 实时价 ' + q.price);
+      });
     } catch (e) {
       // 上游行情偶发慢/限流：自动重试最多 3 次，给服务端「后台续拉」留出时间（通常第 2~3 次即命中缓存秒回）
       if (retryCount < 5) {
