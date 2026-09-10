@@ -35,11 +35,14 @@ self.addEventListener('fetch', (e) => {
     e.respondWith(fetch(req));
     return;
   }
-  // HTML：网络优先 + 强制重新校验（绕过公司代理对 *.github.io 的缓存，保证拿到最新版）；失败时回退到缓存
+  // HTML：网络优先 + 强制重新校验；失败时回退到缓存
+  // 注意：必须先 clone 再交给 caches.put，且 put 用的是「clone 出来的副本」，
+  // 不能在异步回调里再 clone 原始 fr（那时 fr 已被返回消费 → "Response body is already used"）。
   if (url.pathname.endsWith('.html') || url.pathname === '/' || url.pathname.endsWith('/')) {
     e.respondWith(
       fetch(req, { cache: 'reload' }).then((fr) => {
-        try { caches.open(CACHE).then((c) => c.put(req, fr.clone())); } catch (_) {}
+        const copy = fr.clone();
+        caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
         return fr;
       }).catch(() => caches.match(req).then((r) => r || caches.match('./')))
     );
@@ -48,7 +51,11 @@ self.addEventListener('fetch', (e) => {
   // JS/CSS/SVG/icon/manifest：缓存优先（离线可用）
   if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css') || url.pathname.endsWith('.svg') || url.pathname.endsWith('manifest.json')) {
     e.respondWith(
-      caches.match(req).then((r) => r || fetch(req).then((fr) => { try { caches.open(CACHE).then((c) => c.put(req, fr.clone())); } catch (_) {} return fr; }).catch(() => caches.match(req)))
+      caches.match(req).then((r) => r || fetch(req).then((fr) => {
+        const copy = fr.clone();
+        caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+        return fr;
+      }).catch(() => caches.match(req)))
     );
     return;
   }
