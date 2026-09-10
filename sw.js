@@ -1,5 +1,5 @@
 // ChanlunX 缠论 —— 离线应用壳缓存（让"添加到主屏幕"后可秒开、弱网可用）
-const CACHE = 'chanlunx-static-v1';  // 静态托管专用缓存；网络优先加载 HTML，避免旧版缓存干扰
+const CACHE = 'chanlunx-static-v2';  // 静态托管专用缓存；网络优先加载 HTML，避免旧版缓存干扰
 const ASSETS = [
   './',
   './chanlun_chart.html',
@@ -35,10 +35,10 @@ self.addEventListener('fetch', (e) => {
     e.respondWith(fetch(req));
     return;
   }
-  // HTML：网络优先（保证拿到最新版）；失败时回退到缓存
+  // HTML：网络优先 + 强制重新校验（绕过公司代理对 *.github.io 的缓存，保证拿到最新版）；失败时回退到缓存
   if (url.pathname.endsWith('.html') || url.pathname === '/' || url.pathname.endsWith('/')) {
     e.respondWith(
-      fetch(req).then((fr) => {
+      fetch(req, { cache: 'reload' }).then((fr) => {
         try { caches.open(CACHE).then((c) => c.put(req, fr.clone())); } catch (_) {}
         return fr;
       }).catch(() => caches.match(req).then((r) => r || caches.match('./')))
